@@ -1,0 +1,77 @@
+name: Notify Telegram on Release
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send release notes to Telegram
+        env:
+          BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          if [ -z "$BOT_TOKEN" ] || [ -z "$CHAT_ID" ]; then
+            echo "TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID secrets must be configured."
+            exit 1
+          fi
+
+          python3 << 'PYEOF'
+          import html
+          import json
+          import os
+          import urllib.error
+          import urllib.request
+
+          with open(os.environ["GITHUB_EVENT_PATH"], encoding="utf-8") as f:
+              release = json.load(f)["release"]
+
+          name = html.escape(release.get("name") or release["tag_name"])
+          tag = html.escape(release["tag_name"])
+          url = release["html_url"]
+          body = html.escape((release.get("body") or "").strip() or "Без описания")
+
+          text = (
+              f"🚀 <b>{name}</b> (<code>{tag}</code>)\n\n"
+              f"{body}\n\n"
+              f'<a href="{url}">Открыть release на GitHub</a>'
+          )
+
+          # Telegram limit is 4096 characters per message.
+          max_len = 4096
+          chunks = [text[i : i + max_len] for i in range(0, len(text), max_len)]
+
+          for index, chunk in enumerate(chunks):
+              payload = json.dumps(
+                  {
+                      "chat_id": os.environ["CHAT_ID"],
+                      "text": chunk,
+                      "parse_mode": "HTML",
+                      "disable_web_page_preview": index < len(chunks) - 1,
+                  }
+              ).encode("utf-8")
+
+              req = urllib.request.Request(
+                  f"https://api.telegram.org/bot{os.environ['BOT_TOKEN']}/sendMessage",
+                  data=payload,
+                  headers={"Content-Type": "application/json"},
+                  method="POST",
+              )
+
+              try:
+                  with urllib.request.urlopen(req) as response:
+                      result = json.load(response)
+              except urllib.error.HTTPError as error:
+                  details = error.read().decode("utf-8", errors="replace")
+                  raise SystemExit(f"Telegram API error: {details}") from error
+
+              if not result.get("ok"):
+                  raise SystemExit(f"Telegram API returned error: {result}")
+
+          print(f"Sent {len(chunks)} message(s) to Telegram.")
+          PYEOF
