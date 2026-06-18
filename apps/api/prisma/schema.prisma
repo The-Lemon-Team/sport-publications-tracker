@@ -1,0 +1,175 @@
+// Prisma schema for Sport Publications Tracker
+// Hierarchy: User → Topic → Stage → Publication → MetricSnapshot
+// OAuth connections are scoped to User (not to individual publications)
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ─── Enums ───────────────────────────────────────────────────────────────────
+
+enum Provider {
+  TELEGRAM
+  VK
+  YOUTUBE
+  INSTAGRAM
+  CLUB_SOLO_PLATFORM
+  CLUB_SOLO_AUDIO
+  CLUB_SOLO_TEXT
+  NEWSLETTER
+  TIKTOK
+  DZEN
+  CUSTOM
+}
+
+enum PublicationStatus {
+  PLANNED
+  PUBLISHED
+}
+
+enum MetricSnapshotKind {
+  AT_PUBLISH // статистика на момент публикации (из Excel: строки под ☑)
+  LIVE       // актуальная статистика, обновляется cron-ом
+}
+
+enum OAuthProvider {
+  VK
+  GOOGLE   // YouTube Data API
+  FACEBOOK // Instagram Graph API
+}
+
+enum OAuthConnectionStatus {
+  ACTIVE
+  EXPIRED
+  REVOKED
+}
+
+// ─── Auth & OAuth ────────────────────────────────────────────────────────────
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  name         String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  topics            Topic[]
+  oauthConnections  OAuthConnection[]
+  refreshTokens     RefreshToken[]
+
+  @@map("users")
+}
+
+model RefreshToken {
+  id        String   @id @default(cuid())
+  userId    String
+  tokenHash String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("refresh_tokens")
+}
+
+model OAuthConnection {
+  id                String                @id @default(cuid())
+  userId            String
+  provider          OAuthProvider
+  externalAccountId String
+  channelName       String?
+  accessTokenEnc    String
+  refreshTokenEnc   String?
+  scopes            String[]
+  status            OAuthConnectionStatus @default(ACTIVE)
+  subscriberCount   Int?
+  expiresAt         DateTime?
+  metadata          Json?
+  createdAt         DateTime              @default(now())
+  updatedAt         DateTime              @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, provider, externalAccountId])
+  @@index([userId, provider])
+  @@map("oauth_connections")
+}
+
+// ─── Content hierarchy ───────────────────────────────────────────────────────
+
+model Topic {
+  id        String   @id @default(cuid())
+  userId    String
+  name      String
+  order     Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  stages Stage[]
+
+  @@index([userId, order])
+  @@map("topics")
+}
+
+model Stage {
+  id        String   @id @default(cuid())
+  topicId   String
+  name      String
+  hint      String?
+  order     Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  topic         Topic         @relation(fields: [topicId], references: [id], onDelete: Cascade)
+  publications  Publication[]
+
+  @@index([topicId, order])
+  @@map("stages")
+}
+
+model Publication {
+  id          String            @id @default(cuid())
+  stageId     String
+  provider    Provider
+  channelName String
+  label       String?
+  postUrl     String?
+  status      PublicationStatus @default(PLANNED)
+  publishedAt DateTime?
+  order       Int               @default(0)
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  stage     Stage            @relation(fields: [stageId], references: [id], onDelete: Cascade)
+  snapshots MetricSnapshot[]
+
+  @@index([stageId, order])
+  @@index([stageId, provider])
+  @@map("publications")
+}
+
+model MetricSnapshot {
+  id            String             @id @default(cuid())
+  publicationId String
+  kind          MetricSnapshotKind
+  views         Int                @default(0)
+  likes         Int                @default(0)
+  comments      Int                @default(0)
+  shares        Int                @default(0)
+  capturedAt    DateTime           @default(now())
+
+  publication Publication @relation(fields: [publicationId], references: [id], onDelete: Cascade)
+
+  @@unique([publicationId, kind])
+  @@index([publicationId])
+  @@map("metric_snapshots")
+}
