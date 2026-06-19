@@ -1,11 +1,12 @@
-import * as React from 'react'
 import {
   BarChart3,
   CalendarDays,
   LayoutGrid,
   LogOut,
+  Moon,
   Radio,
   Settings,
+  Sun,
   Trophy,
   Users,
   type LucideIcon,
@@ -14,10 +15,16 @@ import { useDispatch, useSelector } from 'react-redux'
 import { useNavigate } from 'react-router-dom'
 import { cn } from '@/lib/utils'
 import { logout, selectAuthUser } from '@/features/auth/authSlice'
+import {
+  DASHBOARD_NAV,
+  type DashboardNavItem,
+} from '@/features/dashboard/lib/nav'
+import { useTheme } from '@/features/theme/ThemeProvider'
 import { Button } from '@/components/ui/button'
+import { Switch } from '@/components/ui/switch'
 
 type NavItem = {
-  label: string
+  label: DashboardNavItem
   icon: LucideIcon
 }
 
@@ -25,27 +32,33 @@ const NAV: { section: string; items: NavItem[] }[] = [
   {
     section: 'Workspace',
     items: [
-      { label: 'Контент-сетка', icon: LayoutGrid },
-      { label: 'Эфиры', icon: Radio },
-      { label: 'Аналитика', icon: BarChart3 },
-      { label: 'Календарь', icon: CalendarDays },
+      { label: DASHBOARD_NAV.content, icon: LayoutGrid },
+      { label: DASHBOARD_NAV.broadcasts, icon: Radio },
+      { label: DASHBOARD_NAV.analytics, icon: BarChart3 },
+      { label: DASHBOARD_NAV.calendar, icon: CalendarDays },
     ],
   },
   {
     section: 'Agency',
     items: [
-      { label: 'Команда', icon: Users },
-      { label: 'Достижения', icon: Trophy },
-      { label: 'Настройки', icon: Settings },
+      { label: DASHBOARD_NAV.team, icon: Users },
+      { label: DASHBOARD_NAV.achievements, icon: Trophy },
+      { label: DASHBOARD_NAV.settings, icon: Settings },
     ],
   },
 ]
 
-export function DashboardSidebar() {
+type DashboardSidebarProps = {
+  active: DashboardNavItem
+  onNavigate: (item: DashboardNavItem) => void
+}
+
+export function DashboardSidebar({ active, onNavigate }: DashboardSidebarProps) {
   const user = useSelector(selectAuthUser)
   const dispatch = useDispatch()
   const navigate = useNavigate()
-  const [active, setActive] = React.useState('Контент-сетка')
+  const { theme, setTheme } = useTheme()
+  const isDark = theme === 'dark'
 
   function handleLogout() {
     dispatch(logout())
@@ -77,7 +90,7 @@ export function DashboardSidebar() {
                 <button
                   key={item.label}
                   type="button"
-                  onClick={() => setActive(item.label)}
+                  onClick={() => onNavigate(item.label)}
                   className={cn(
                     'flex items-center gap-3 rounded-lg px-2.5 py-2 text-left text-sm transition-colors',
                     isActive
@@ -99,13 +112,21 @@ export function DashboardSidebar() {
 
       <div className="space-y-3">
         <div className="rounded-xl border border-sidebar-border bg-sidebar-accent/50 p-3 backdrop-blur">
-          <p className="text-xs font-medium">Сезон 2026</p>
-          <p className="mt-0.5 truncate text-[11px] text-sidebar-foreground/60">
+          <div className="flex items-center justify-between gap-3">
+            <Sun className="size-3.5 shrink-0 text-sidebar-foreground/60" />
+            <Switch
+              checked={isDark}
+              onCheckedChange={(checked) => setTheme(checked ? 'dark' : 'light')}
+              aria-label="Переключить тему"
+            />
+            <Moon className="size-3.5 shrink-0 text-sidebar-foreground/60" />
+          </div>
+          <p className="mt-2 text-center text-[10px] text-sidebar-foreground/50">
+            {isDark ? 'Тёмная тема' : 'Светлая тема'}
+          </p>
+          <p className="mt-1 truncate text-[11px] text-sidebar-foreground/60">
             {user?.email}
           </p>
-          <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-sidebar-foreground/15">
-            <div className="h-full w-[78%] rounded-full bg-sidebar-primary" />
-          </div>
         </div>
         <Button
           variant="ghost"

@@ -25,3 +25,22 @@ export class RefreshDto {
   @IsString()
   refreshToken!: string
 }
+
+export class UpdateProfileDto {
+  @IsOptional()
+  @IsString()
+  name?: string
+
+  @IsOptional()
+  @IsEmail()
+  email?: string
+
+  @IsOptional()
+  @IsString()
+  currentPassword?: string
+
+  @IsOptional()
+  @IsString()
+  @MinLength(8)
+  newPassword?: string
+}

@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto'
 import {
+  BadRequestException,
   ConflictException,
   Inject,
   Injectable,
@@ -10,7 +11,7 @@ import { JwtService } from '@nestjs/jwt'
 import * as bcrypt from 'bcryptjs'
 import type { AuthTokensDto, UserDto } from '@spt/shared'
 import { PrismaService } from '../prisma/prisma.service'
-import type { RegisterDto } from './dto/auth.dto'
+import type { RegisterDto, UpdateProfileDto } from './dto/auth.dto'
 
 interface JwtPayload {
   sub: string
@@ -100,6 +101,70 @@ export class AuthService {
 
   toUserDto(user: { id: string; email: string; name: string | null }): UserDto {
     return { id: user.id, email: user.email, name: user.name }
+  }
+
+  async updateProfile(
+    userId: string,
+    dto: UpdateProfileDto,
+  ): Promise<UserDto> {
+    const user = await this.prisma.withFreshConnection((db) =>
+      db.user.findUnique({ where: { id: userId } }),
+    )
+
+    if (!user) {
+      throw new UnauthorizedException('User not found')
+    }
+
+    const hasProfileChange =
+      dto.name !== undefined || dto.email !== undefined
+    const hasPasswordChange = Boolean(dto.newPassword)
+
+    if (!hasProfileChange && !hasPasswordChange) {
+      throw new BadRequestException('No changes provided')
+    }
+
+    if (hasProfileChange || hasPasswordChange) {
+      if (!dto.currentPassword) {
+        throw new BadRequestException('Current password is required')
+      }
+      const valid = await bcrypt.compare(dto.currentPassword, user.passwordHash)
+      if (!valid) {
+        throw new UnauthorizedException('Invalid current password')
+      }
+    }
+
+    const data: { name?: string | null; email?: string; passwordHash?: string } =
+      {}
+
+    if (dto.name !== undefined) {
+      data.name = dto.name.trim() || null
+    }
+
+    if (dto.email !== undefined) {
+      const email = dto.email.toLowerCase()
+      if (email !== user.email) {
+        const existing = await this.prisma.withFreshConnection((db) =>
+          db.user.findUnique({ where: { email } }),
+        )
+        if (existing) {
+          throw new ConflictException('Email already registered')
+        }
+        data.email = email
+      }
+    }
+
+    if (dto.newPassword) {
+      data.passwordHash = await bcrypt.hash(dto.newPassword, 12)
+    }
+
+    const updated = await this.prisma.withFreshConnection((db) =>
+      db.user.update({
+        where: { id: userId },
+        data,
+      }),
+    )
+
+    return this.toUserDto(updated)
   }
 
   private async issueTokens(

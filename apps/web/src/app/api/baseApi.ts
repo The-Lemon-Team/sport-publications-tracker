@@ -5,6 +5,7 @@ import type {
   OAuthConnectionDto,
   RegisterRequest,
   TopicDto,
+  UpdateProfileRequest,
   UserDto,
 } from '@spt/shared'
 
@@ -42,6 +43,14 @@ export const baseApi = createApi({
       query: () => '/auth/me',
       providesTags: ['Me'],
     }),
+    updateProfile: builder.mutation<UserDto, UpdateProfileRequest>({
+      query: (body) => ({
+        url: '/auth/me',
+        method: 'PATCH',
+        body,
+      }),
+      invalidatesTags: ['Me'],
+    }),
     getTopics: builder.query<TopicDto[], void>({
       query: () => '/topics',
       providesTags: ['Topics'],
@@ -57,6 +66,7 @@ export const {
   useRegisterMutation,
   useLoginMutation,
   useGetMeQuery,
+  useUpdateProfileMutation,
   useGetTopicsQuery,
   useGetOAuthConnectionsQuery,
 } = baseApi

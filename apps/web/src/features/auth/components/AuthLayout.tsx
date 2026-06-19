@@ -44,7 +44,7 @@ export function AuthLayout({
             одном дашборде.
           </p>
         </div>
-        <p className="text-xs text-sidebar-foreground/50">Сезон 2026</p>
+        <p className="text-xs text-sidebar-foreground/50">Studio S10</p>
       </div>
 
       <div className="flex flex-1 items-center justify-center p-6">

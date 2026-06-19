@@ -121,6 +121,13 @@ export interface LoginRequest {
   password: string
 }
 
+export interface UpdateProfileRequest {
+  name?: string
+  email?: string
+  currentPassword?: string
+  newPassword?: string
+}
+
 export interface CreatePublicationRequest {
   stageId: string
   provider: Provider
