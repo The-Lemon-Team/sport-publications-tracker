@@ -1,11 +1,9 @@
 import { useEffect } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
 import { Navigate, Outlet } from 'react-router-dom'
-import type { FetchBaseQueryError } from '@reduxjs/toolkit/query'
 import { useGetMeQuery } from '@/app/api/baseApi'
 import {
   hydrate,
-  logout,
   selectAuthHydrated,
   selectIsAuthenticated,
   setUser,
@@ -15,7 +13,7 @@ export function ProtectedRoute() {
   const dispatch = useDispatch()
   const hydrated = useSelector(selectAuthHydrated)
   const isAuthenticated = useSelector(selectIsAuthenticated)
-  const { data: me, isError, error } = useGetMeQuery(undefined, {
+  const { data: me } = useGetMeQuery(undefined, {
     skip: !isAuthenticated,
   })
 
@@ -26,13 +24,6 @@ export function ProtectedRoute() {
   useEffect(() => {
     if (me) dispatch(setUser(me))
   }, [me, dispatch])
-
-  useEffect(() => {
-    const status = (error as FetchBaseQueryError | undefined)?.status
-    if (isError && status === 401) {
-      dispatch(logout())
-    }
-  }, [isError, error, dispatch])
 
   if (!hydrated) {
     return (

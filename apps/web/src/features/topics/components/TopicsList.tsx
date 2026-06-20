@@ -3,10 +3,13 @@ import {
   ChevronDown,
   ChevronRight,
   ExternalLink,
+  Heart,
   Layers,
+  MessageCircle,
 } from 'lucide-react'
 import type { TopicDto } from '@spt/shared'
 import { PublicationStatus } from '@spt/shared'
+import { formatNumber } from '@/features/content-table/lib/metrics'
 import { ProviderBadge } from '@/features/dashboard/components/ProviderBadge'
 import { formatSubscriberDate } from '@/lib/dashboard-utils'
 import { providerIdFromEnum } from '@/lib/providers'
@@ -20,6 +23,38 @@ import {
 const STATUS_LABELS: Record<PublicationStatus, string> = {
   [PublicationStatus.PUBLISHED]: 'Опубликовано',
   [PublicationStatus.PLANNED]: 'Запланировано',
+}
+
+function PublicationMetrics({
+  status,
+  metrics,
+  compact,
+}: {
+  status: PublicationStatus
+  metrics: { likes: number; comments: number }
+  compact?: boolean
+}) {
+  if (status !== PublicationStatus.PUBLISHED) {
+    return null
+  }
+
+  return (
+    <div
+      className={cn(
+        'flex shrink-0 items-center text-muted-foreground',
+        compact ? 'gap-2 text-[11px]' : 'gap-3 text-xs',
+      )}
+    >
+      <span className="inline-flex items-center gap-1 tabular-nums">
+        <Heart className={compact ? 'size-3' : 'size-3.5'} />
+        {formatNumber(metrics.likes)}
+      </span>
+      <span className="inline-flex items-center gap-1 tabular-nums">
+        <MessageCircle className={compact ? 'size-3' : 'size-3.5'} />
+        {formatNumber(metrics.comments)}
+      </span>
+    </div>
+  )
 }
 
 function TopicListGroup({
@@ -131,6 +166,12 @@ function TopicListGroup({
                 >
                   {STATUS_LABELS[pub.status]}
                 </Badge>
+
+                <PublicationMetrics
+                  status={pub.status}
+                  metrics={pub.metrics}
+                  compact={compact}
+                />
 
                 {pub.postUrl ? (
                   <a

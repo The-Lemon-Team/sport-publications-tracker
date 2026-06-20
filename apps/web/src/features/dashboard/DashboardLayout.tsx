@@ -1,5 +1,6 @@
+import { useTranslation } from 'react-i18next'
 import { useEffect, useMemo, useState } from 'react'
-import type { SubscriberSourceDto } from '@spt/shared'
+import type { OAuthConnectionDto, SubscriberSourceDto } from '@spt/shared'
 import { Outlet, useLocation } from 'react-router-dom'
 import {
   useGetOAuthConnectionsQuery,
@@ -14,7 +15,8 @@ import { DashboardSidebar } from '@/features/dashboard/components/DashboardSideb
 import { OAuthConnectingOverlay } from '@/features/dashboard/components/OAuthConnectingOverlay'
 import {
   navFromPath,
-  PAGE_TITLES,
+  pageSubtitleKey,
+  pageTitleKey,
   PAGES_WITH_CUSTOM_HEADER,
 } from '@/features/dashboard/lib/nav'
 import {
@@ -53,9 +55,9 @@ function mapDbSourceToLive(source: SubscriberSourceDto): LiveSubscriberSource {
 }
 
 function DashboardChrome() {
+  const { t } = useTranslation()
   const location = useLocation()
   const activeNav = navFromPath(location.pathname)
-  const pageMeta = PAGE_TITLES[activeNav]
   const hasCustomHeader = PAGES_WITH_CUSTOM_HEADER.has(activeNav)
 
   return (
@@ -63,9 +65,11 @@ function DashboardChrome() {
       {!hasCustomHeader ? (
         <header className="sticky top-0 z-20 border-b border-border bg-background/80 px-4 py-4 backdrop-blur-xl md:px-6">
           <h1 className="text-xl font-semibold tracking-tight">
-            {pageMeta.title}
+            {t(pageTitleKey(activeNav))}
           </h1>
-          <p className="text-sm text-muted-foreground">{pageMeta.subtitle}</p>
+          <p className="text-sm text-muted-foreground">
+            {t(pageSubtitleKey(activeNav))}
+          </p>
         </header>
       ) : null}
       <Outlet />
@@ -90,11 +94,7 @@ export function DashboardLayout() {
 
   const oauthConnected = useMemo(() => {
     if (!oauthConnections?.length) return []
-    return oauthConnections.filter(
-      (c) =>
-        c.status === 'ACTIVE' &&
-        (c.provider === 'VK' || c.provider === 'FACEBOOK'),
-    )
+    return oauthConnections.filter((c) => c.status === 'ACTIVE')
   }, [oauthConnections])
 
   useEffect(() => {
@@ -156,9 +156,10 @@ export function DashboardLayout() {
     for (const connection of oauthConnected) {
       const providerId = getOAuthConnectionProviderId(connection.provider)
       const sourceType = getSubscribableSourceType(providerId)
-      if (!sourceType) continue
+      if (!sourceType || sourceType.kind !== 'oauth') continue
       sources.push({
         key: `${providerId}:${connection.externalAccountId}`,
+        oauthConnectionId: connection.id,
         providerId,
         handle: connection.channelName ?? sourceType.defaultHandle,
         baseSubscribers:
@@ -171,7 +172,7 @@ export function DashboardLayout() {
   }, [oauthConnected, trackedSources])
 
   function connectProvider(id: string) {
-    if (oauthConnectingId) return
+    if (oauthConnectingId || id !== 'instagram') return
     setOauthError(null)
 
     const token = localStorage.getItem('accessToken')
@@ -180,8 +181,6 @@ export function DashboardLayout() {
       return
     }
 
-    const expectedApiProvider = id === 'instagram' ? 'FACEBOOK' : 'VK'
-
     void startProviderOAuth(id, {
       onPreparingChange: (preparing) =>
         setOauthConnectingId(preparing ? id : null),
@@ -189,7 +188,7 @@ export function DashboardLayout() {
       .then(async () => {
         const result = await refetchOAuth()
         const hasActive = result.data?.some(
-          (c) => c.status === 'ACTIVE' && c.provider === expectedApiProvider,
+          (c) => c.status === 'ACTIVE' && c.provider === 'FACEBOOK',
         )
         if (!hasActive) {
           setOauthError('Подключение не сохранилось. Попробуйте ещё раз.')
@@ -213,6 +212,7 @@ export function DashboardLayout() {
       <DashboardLayoutInner
         activeNav={activeNav}
         subscriberSources={subscriberSources}
+        oauthConnections={oauthConnections ?? []}
         oauthError={oauthError}
         connectingId={oauthConnectingId}
         onConnectOAuth={connectProvider}
@@ -225,6 +225,7 @@ export function DashboardLayout() {
 function DashboardLayoutInner({
   activeNav,
   subscriberSources,
+  oauthConnections,
   oauthError,
   connectingId,
   onConnectOAuth,
@@ -232,6 +233,7 @@ function DashboardLayoutInner({
 }: {
   activeNav: ReturnType<typeof navFromPath>
   subscriberSources: LiveSubscriberSource[]
+  oauthConnections: OAuthConnectionDto[]
   oauthError: string | null
   connectingId: string | null
   onConnectOAuth: (id: string) => void
@@ -253,6 +255,7 @@ function DashboardLayoutInner({
     () => ({
       subscriberSources,
       weeklyPublications,
+      oauthConnections: oauthConnections,
       connectingId,
       oauthError,
       onConnectOAuth,
@@ -261,6 +264,7 @@ function DashboardLayoutInner({
     [
       subscriberSources,
       weeklyPublications,
+      oauthConnections,
       connectingId,
       oauthError,
       onConnectOAuth,

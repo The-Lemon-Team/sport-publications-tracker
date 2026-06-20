@@ -3,6 +3,7 @@ import { Plus } from 'lucide-react'
 import { useCreateSubscriberSourceMutation } from '@/app/api/baseApi'
 import {
   getSubscribableSourceType,
+  parseVkGroupInput,
   parseYouTubeChannelInput,
   providerOf,
 } from '@/lib/provider-connections'
@@ -18,6 +19,34 @@ import {
   DialogTitle,
 } from '@/components/ui/card'
 import { ProviderBadge } from './ProviderBadge'
+
+const CHANNEL_COPY: Record<
+  string,
+  {
+    label: string
+    placeholder: string
+    hint: string
+    notFoundError: string
+    submitLabel: string
+  }
+> = {
+  youtube: {
+    label: 'Канал YouTube',
+    placeholder: 'https://youtube.com/@studio-s10',
+    hint: 'Поддерживаются ссылки вида youtube.com/@handle, /channel/… и /c/…',
+    notFoundError:
+      'Канал не найден или YouTube API недоступен. Проверьте ссылку.',
+    submitLabel: 'Добавить канал',
+  },
+  vk: {
+    label: 'Группа VK',
+    placeholder: 'https://vk.com/studio.s10',
+    hint: 'Поддерживаются vk.com/screen_name, vk.com/club123 и vk.com/public123',
+    notFoundError:
+      'Группа не найдена или VK API недоступен. Проверьте ссылку.',
+    submitLabel: 'Добавить группу',
+  },
+}
 
 export function AddSubscriberSourceDialog({
   open,
@@ -36,6 +65,14 @@ export function AddSubscriberSourceDialog({
 
   const sourceType = getSubscribableSourceType(providerId)
   const provider = providerOf(providerId)
+  const copy =
+    CHANNEL_COPY[providerId] ?? {
+      label: provider.name,
+      placeholder: '',
+      hint: '',
+      notFoundError: 'Источник не найден. Проверьте ссылку.',
+      submitLabel: 'Добавить',
+    }
 
   useEffect(() => {
     if (open) {
@@ -48,9 +85,16 @@ export function AddSubscriberSourceDialog({
     e.preventDefault()
     setError(null)
 
-    const parsed = parseYouTubeChannelInput(url)
+    const parsed =
+      providerId === 'vk'
+        ? parseVkGroupInput(url)
+        : parseYouTubeChannelInput(url)
     if (!parsed) {
-      setError('Укажите ссылку на канал или @handle')
+      setError(
+        providerId === 'vk'
+          ? 'Укажите ссылку на группу VK'
+          : 'Укажите ссылку на канал или @handle',
+      )
       return
     }
 
@@ -59,7 +103,7 @@ export function AddSubscriberSourceDialog({
       onAdded()
       onOpenChange(false)
     } catch {
-      setError('Канал не найден или YouTube API недоступен. Проверьте ссылку.')
+      setError(copy.notFoundError)
     }
   }
 
@@ -74,25 +118,23 @@ export function AddSubscriberSourceDialog({
             </DialogTitle>
           </div>
           <DialogDescription>
-            Вставьте ссылку на канал или @handle — подписчики появятся в блоке в
-            реальном времени, а изменения будут сохраняться в истории.
+            Вставьте ссылку — подписчики появятся в блоке в реальном времени, а
+            изменения будут сохраняться в истории.
           </DialogDescription>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="mt-4 space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="channel-url">Канал YouTube</Label>
+            <Label htmlFor="channel-url">{copy.label}</Label>
             <Input
               id="channel-url"
               value={url}
               onChange={(e) => setUrl(e.target.value)}
-              placeholder="https://youtube.com/@studio-s10"
+              placeholder={copy.placeholder}
               autoFocus
               disabled={isLoading}
             />
-            <p className="text-xs text-muted-foreground">
-              Поддерживаются ссылки вида youtube.com/@handle, /channel/… и /c/…
-            </p>
+            <p className="text-xs text-muted-foreground">{copy.hint}</p>
           </div>
 
           {error ? (
@@ -112,7 +154,7 @@ export function AddSubscriberSourceDialog({
             </Button>
             <Button type="submit" disabled={!url.trim() || isLoading}>
               <Plus className="size-4" />
-              {isLoading ? 'Проверяем…' : 'Добавить канал'}
+              {isLoading ? 'Проверяем…' : copy.submitLabel}
             </Button>
           </DialogFooter>
         </form>

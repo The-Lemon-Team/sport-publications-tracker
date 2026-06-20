@@ -1,10 +1,12 @@
 import { createContext, useContext, type ReactNode } from 'react'
+import type { OAuthConnectionDto } from '@spt/shared'
 import type { LiveSubscriberSource } from '@/lib/provider-connections'
 import type { WeeklyPublicationInsight } from '@/features/dashboard/lib/sidebar-user-stats'
 
 type DashboardShellContextValue = {
   subscriberSources: LiveSubscriberSource[]
   weeklyPublications: WeeklyPublicationInsight[]
+  oauthConnections: OAuthConnectionDto[]
   connectingId: string | null
   oauthError: string | null
   onConnectOAuth: (id: string) => void

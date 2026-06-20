@@ -1,5 +1,6 @@
-import type { Provider, PublicationDto, TopicDto } from '@spt/shared'
+import type { Metrics, Provider, PublicationDto, TopicDto } from '@spt/shared'
 import { PublicationStatus } from '@spt/shared'
+import { aggregatePublication } from '@/features/content-table/lib/metrics'
 import {
   formatDateRangeLabel,
   isDateInRange,
@@ -23,6 +24,7 @@ export type TopicPublicationRow = {
   status: PublicationStatus
   postUrl: string | null
   date: Date | null
+  metrics: Metrics
 }
 
 export function flattenTopicPublications(topic: TopicDto): TopicPublicationRow[] {
@@ -40,6 +42,7 @@ export function flattenTopicPublications(topic: TopicDto): TopicPublicationRow[]
         status: pub.status,
         postUrl: pub.postUrl,
         date: getPublicationDate(pub),
+        metrics: aggregatePublication(pub),
       })
     }
   }
@@ -108,4 +111,11 @@ export function filterTopicPublications(
   if (!dateRange.enabled) return rows
 
   return rows.filter((row) => matchesDateRange(row.date, dateRange))
+}
+
+export function flattenFilteredTopicsPublications(
+  topics: TopicDto[],
+  filters: Pick<TopicsFilterOptions, 'dateRange'>,
+): TopicPublicationRow[] {
+  return topics.flatMap((topic) => filterTopicPublications(topic, filters))
 }

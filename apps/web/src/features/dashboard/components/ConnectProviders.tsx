@@ -30,8 +30,8 @@ export function ConnectProviders({
             Подключите соцсети, чтобы видеть статистику
           </h2>
           <p className="max-w-xl text-sm leading-relaxed text-muted-foreground md:text-base">
-            Подключите VK, чтобы видеть число подписчиков в реальном времени.
-            YouTube-видео добавляются по ссылке — авторизация Google не нужна.
+            Добавьте группы VK и каналы YouTube по ссылке — авторизация не
+            нужна. Instagram подключается через Meta OAuth.
           </p>
           {error ? (
             <p className="max-w-xl rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">

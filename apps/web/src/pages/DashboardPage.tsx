@@ -1,6 +1,7 @@
 import { Routes, Route } from 'react-router-dom'
 import { DashboardLayout } from '@/features/dashboard/DashboardLayout'
 import { ContentGridRoute } from '@/features/dashboard/pages/ContentGridRoute'
+import { HomeRoute } from '@/features/dashboard/pages/HomeRoute'
 import {
   CalendarPage,
   SettingsPage,
@@ -16,7 +17,8 @@ export function DashboardPage() {
   return (
     <Routes>
       <Route element={<DashboardLayout />}>
-        <Route index element={<ContentGridRoute />} />
+        <Route index element={<HomeRoute />} />
+        <Route path="content" element={<ContentGridRoute />} />
         <Route path="topics" element={<TopicsPage />} />
         <Route path="calendar" element={<CalendarPage />} />
         <Route path="settings" element={<SettingsPage />} />
@@ -24,7 +26,7 @@ export function DashboardPage() {
           <Route
             key={nav}
             path={DASHBOARD_PATHS[nav].slice(1)}
-            element={<UnderDevelopmentPage title={nav} />}
+            element={<UnderDevelopmentPage navId={nav} />}
           />
         ))}
       </Route>

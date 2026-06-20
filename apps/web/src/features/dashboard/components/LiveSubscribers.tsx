@@ -1,5 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { ChevronDown, Plus, Users } from 'lucide-react'
+import { Check, ChevronDown, Pencil, Plus, Users, X } from 'lucide-react'
+import {
+  useDeleteSubscriberSourceMutation,
+  useRevokeOAuthConnectionMutation,
+} from '@/app/api/baseApi'
 import {
   SUBSCRIBABLE_SOURCE_TYPES,
   type LiveSubscriberSource,
@@ -8,6 +12,14 @@ import {
 import { formatNumber } from '@/lib/dashboard-utils'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/card'
 import { ProviderBadge } from './ProviderBadge'
 import { AddSubscriberSourceDialog } from './AddSubscriberSourceDialog'
 import { SubscriberDeltaBadge } from './SubscriberDeltaBadge'
@@ -137,6 +149,61 @@ function AddSubscriberButton({
   )
 }
 
+function RemoveSubscriberDialog({
+  source,
+  deleting,
+  onConfirm,
+  onOpenChange,
+}: {
+  source: LiveSubscriberSource | null
+  deleting: boolean
+  onConfirm: () => void
+  onOpenChange: (open: boolean) => void
+}) {
+  const provider = source ? providerOf(source.providerId) : null
+
+  return (
+    <Dialog
+      open={Boolean(source)}
+      onOpenChange={(open) => {
+        if (!open && !deleting) onOpenChange(false)
+      }}
+    >
+      <DialogContent className="relative">
+        <DialogHeader>
+          <DialogTitle>Удалить площадку?</DialogTitle>
+          <DialogDescription>
+            {source && provider ? (
+              <>
+                {provider.name} · {source.handle} будет убран из блока
+                «Подписчики в реальном времени». Это действие нельзя отменить.
+              </>
+            ) : null}
+          </DialogDescription>
+        </DialogHeader>
+        <DialogFooter>
+          <Button
+            type="button"
+            variant="outline"
+            disabled={deleting}
+            onClick={() => onOpenChange(false)}
+          >
+            Отмена
+          </Button>
+          <Button
+            type="button"
+            variant="destructive"
+            disabled={deleting}
+            onClick={onConfirm}
+          >
+            {deleting ? 'Удаляем…' : 'Удалить'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
 export function LiveSubscribers({
   sources,
   connectingId,
@@ -152,7 +219,17 @@ export function LiveSubscribers({
   const [historySource, setHistorySource] = useState<LiveSubscriberSource | null>(
     null,
   )
+  const [editMode, setEditMode] = useState(false)
+  const [pendingRemove, setPendingRemove] = useState<LiveSubscriberSource | null>(
+    null,
+  )
   const [live, setLive] = useState<LiveState>({})
+  const [deleteSubscriberSource, { isLoading: isDeletingSource }] =
+    useDeleteSubscriberSourceMutation()
+  const [revokeOAuthConnection, { isLoading: isRevokingOAuth }] =
+    useRevokeOAuthConnectionMutation()
+
+  const isRemoving = isDeletingSource || isRevokingOAuth
 
   const mockSources = useMemo(
     () => sources.filter((source) => !source.sourceId),
@@ -191,6 +268,12 @@ export function LiveSubscribers({
     return () => clearInterval(interval)
   }, [mockSources])
 
+  useEffect(() => {
+    if (sources.length === 0) {
+      setEditMode(false)
+    }
+  }, [sources.length])
+
   const connectedProviderIds = useMemo(
     () => new Set(sources.map((s) => s.providerId)),
     [sources],
@@ -209,6 +292,23 @@ export function LiveSubscribers({
   }, 0)
 
   const hasSources = sources.length > 0
+
+  async function handleConfirmRemove() {
+    if (!pendingRemove) return
+
+    try {
+      if (pendingRemove.sourceId) {
+        await deleteSubscriberSource(pendingRemove.sourceId).unwrap()
+      } else if (pendingRemove.oauthConnectionId) {
+        await revokeOAuthConnection(pendingRemove.oauthConnectionId).unwrap()
+      } else {
+        return
+      }
+      setPendingRemove(null)
+    } catch {
+      // Keep the dialog open so the user can retry or cancel.
+    }
+  }
 
   return (
     <>
@@ -237,12 +337,39 @@ export function LiveSubscribers({
               </div>
             ) : null}
             {hasSources ? (
-              <AddSubscriberButton
-                availableTypes={availableTypes}
-                connectingId={connectingId}
-                onConnectOAuth={onConnectOAuth}
-                onAddChannel={setDialogProviderId}
-              />
+              <div className="flex items-center gap-2">
+                <AddSubscriberButton
+                  availableTypes={availableTypes}
+                  connectingId={connectingId}
+                  onConnectOAuth={onConnectOAuth}
+                  onAddChannel={setDialogProviderId}
+                />
+                <Button
+                  type="button"
+                  variant={editMode ? 'secondary' : 'outline'}
+                  size="sm"
+                  className="gap-1.5"
+                  aria-pressed={editMode}
+                  onClick={() => {
+                    setEditMode((prev) => !prev)
+                    if (editMode) {
+                      setHistorySource(null)
+                    }
+                  }}
+                >
+                  {editMode ? (
+                    <>
+                      <Check className="size-4" />
+                      <span>Готово</span>
+                    </>
+                  ) : (
+                    <>
+                      <Pencil className="size-4" />
+                      <span className="hidden sm:inline">Изменить</span>
+                    </>
+                  )}
+                </Button>
+              </div>
             ) : null}
           </div>
         </div>
@@ -262,8 +389,24 @@ export function LiveSubscribers({
               return (
                 <div
                   key={source.key}
-                  className="flex items-center gap-3 rounded-xl border border-border bg-white px-4 py-3.5 dark:bg-card"
+                  className={cn(
+                    'relative flex items-center gap-3 rounded-xl border border-border bg-white px-4 py-3.5 dark:bg-card',
+                    editMode && 'ring-1 ring-primary/20',
+                  )}
                 >
+                  {editMode ? (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-sm"
+                      className="absolute right-2 top-2 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                      aria-label={`Удалить ${provider.name}`}
+                      disabled={isRemoving}
+                      onClick={() => setPendingRemove(source)}
+                    >
+                      <X className="size-4" />
+                    </Button>
+                  ) : null}
                   <ProviderBadge providerId={source.providerId} />
                   <div className="min-w-0 flex-1 leading-tight">
                     <p className="truncate text-xs text-muted-foreground">
@@ -276,7 +419,7 @@ export function LiveSubscribers({
                       {formatNumber(count)}
                     </p>
                   </div>
-                  {isTracked ? (
+                  {isTracked && !editMode ? (
                     <SubscriberDeltaBadge
                       delta={delta}
                       lastChangedAt={source.lastChangedAt ?? null}
@@ -286,8 +429,8 @@ export function LiveSubscribers({
                   ) : (
                     <SubscriberDeltaBadge
                       delta={delta}
-                      lastChangedAt={null}
-                      lastChange={null}
+                      lastChangedAt={editMode ? null : (source.lastChangedAt ?? null)}
+                      lastChange={editMode ? null : (source.lastChange ?? null)}
                     />
                   )}
                 </div>
@@ -328,6 +471,15 @@ export function LiveSubscribers({
         sourceId={historySource?.sourceId ?? null}
         providerId={historySource?.providerId ?? 'youtube'}
         handle={historySource?.handle ?? ''}
+      />
+
+      <RemoveSubscriberDialog
+        source={pendingRemove}
+        deleting={isRemoving}
+        onConfirm={() => void handleConfirmRemove()}
+        onOpenChange={(open) => {
+          if (!open) setPendingRemove(null)
+        }}
       />
     </>
   )

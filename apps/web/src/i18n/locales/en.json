@@ -1,0 +1,117 @@
+{
+  "nav": {
+    "section": {
+      "workspace": "Workspace",
+      "agency": "Agency"
+    },
+    "home": "Home",
+    "content": "Content grid",
+    "topics": "Topics",
+    "broadcasts": "Broadcasts",
+    "analytics": "Analytics",
+    "calendar": "Calendar",
+    "team": "Team",
+    "achievements": "Achievements",
+    "settings": "Settings",
+    "logout": "Log out",
+    "themeDark": "Dark theme",
+    "themeLight": "Light theme",
+    "toggleTheme": "Toggle theme"
+  },
+  "pages": {
+    "home": {
+      "title": "Home",
+      "subtitle": "Content summary and connections"
+    },
+    "content": {
+      "title": "Content grid",
+      "subtitle": "Publications by topic, stage, and platform"
+    },
+    "topics": {
+      "title": "Topics",
+      "subtitle": "Content topics and publications list"
+    },
+    "broadcasts": {
+      "title": "Broadcasts",
+      "subtitle": "Live stream management"
+    },
+    "analytics": {
+      "title": "Analytics",
+      "subtitle": "Cross-platform analytics"
+    },
+    "calendar": {
+      "title": "Calendar",
+      "subtitle": "Publications by date"
+    },
+    "team": {
+      "title": "Team",
+      "subtitle": "Members and roles"
+    },
+    "achievements": {
+      "title": "Achievements",
+      "subtitle": "Season goals and progress"
+    },
+    "settings": {
+      "title": "Settings",
+      "subtitle": "Profile and account preferences"
+    }
+  },
+  "underDevelopment": {
+    "description": "This page is under development. New features are coming soon."
+  },
+  "dashboard": {
+    "addPublication": "Add Publication",
+    "nextSteps": {
+      "title": "Next steps",
+      "subtitle": "Recommended setup for a complete view across platforms",
+      "allDone": "Main connections are set up. Add publications in the content grid and track metrics here.",
+      "instagram": {
+        "title": "Connect Instagram",
+        "description": "Sign in via Meta to pull post metrics and follower counts.",
+        "action": "Authorize"
+      },
+      "youtube": {
+        "title": "Add a YouTube channel",
+        "description": "Add your channel in the Live subscribers block to track audience growth.",
+        "action": "Go to subscribers"
+      },
+      "firstTopic": {
+        "title": "Open the content grid",
+        "description": "Topics, stages, and publications across platforms — manage all your content in one place.",
+        "action": "Go to content grid"
+      }
+    },
+    "stats": {
+      "totalViews": "Total Views",
+      "totalComments": "Total Comments",
+      "totalLikes": "Total Likes",
+      "activeTopics": "Active Topics"
+    },
+    "summary": {
+      "views": "Views",
+      "comments": "Comments",
+      "likes": "Likes",
+      "stages": "Stages"
+    },
+    "contentGridPromo": {
+      "title": "Go to content grid",
+      "description": "Topics, stages, and publications across all platforms — add content and track metrics",
+      "action": "Open content grid",
+      "emptyTitle": "Content grid",
+      "emptyDescription": "Topics, stages, and publications across platforms — add content and track metrics in one place.",
+      "emptyAction": "Open content grid"
+    },
+    "emptyTopics": {
+      "title": "Start with your first topic",
+      "description": "The content grid is built around topics. Create the first one, then add funnel stages and platform publications.",
+      "action": "Create first topic",
+      "steps": [
+        "Topic — content project name (Excel: video / content title column)",
+        "Stage — funnel step: announcement, live stream, clips, and more",
+        "Publication — a post or video on a chosen platform"
+      ],
+      "loadError": "Could not load topics. Check your connection and try again.",
+      "retry": "Retry"
+    }
+  }
+}

@@ -1,45 +1,81 @@
-import { useMemo, useState } from 'react'
 import type { TopicDto } from '@spt/shared'
+
 import {
+  useCreateStageMutation,
   useCreateTopicMutation,
   useGetTopicsQuery,
+  useReorderPublicationsMutation,
+  useReorderStagesMutation,
+  useUpdatePublicationMutation,
+  useUpdateStageMutation,
 } from '@/app/api/baseApi'
-import { DEMO_TOPICS } from '@/features/content-table/lib/demo-data'
 
 export function useDashboardTopics() {
-  const { data: apiTopics, isError: topicsError } = useGetTopicsQuery()
+  const {
+    data: apiTopics,
+    isLoading,
+    isError,
+    refetch,
+  } = useGetTopicsQuery()
   const [createTopic, { isLoading: isCreatingTopic }] = useCreateTopicMutation()
-  const [demoTopics, setDemoTopics] = useState<TopicDto[]>([])
+  const [createStage, { isLoading: isCreatingStage }] = useCreateStageMutation()
+  const [reorderStages] = useReorderStagesMutation()
+  const [updateStage] = useUpdateStageMutation()
+  const [reorderPublications] = useReorderPublicationsMutation()
+  const [updatePublication] = useUpdatePublicationMutation()
 
-  const isDemo = topicsError || !apiTopics?.length
-
-  const sourceTopics = useMemo(
-    () => (isDemo ? [...DEMO_TOPICS, ...demoTopics] : (apiTopics ?? [])),
-    [apiTopics, demoTopics, isDemo],
-  )
+  const sourceTopics: TopicDto[] = apiTopics ?? []
 
   async function handleCreateTopic(name: string) {
-    if (isDemo) {
-      setDemoTopics((prev) => [
-        ...prev,
-        {
-          id: `topic-local-${Date.now()}`,
-          name,
-          order: DEMO_TOPICS.length + prev.length,
-          createdAt: new Date().toISOString(),
-          stages: [],
-        },
-      ])
-      return
-    }
-
     await createTopic({ name }).unwrap()
+  }
+
+  async function handleCreateStage(
+    topicId: string,
+    input: { name: string; hint?: string },
+  ) {
+    await createStage({ topicId, ...input }).unwrap()
+  }
+
+  async function handleReorderStages(topicId: string, stageIds: string[]) {
+    await reorderStages({ topicId, stageIds }).unwrap()
+  }
+
+  async function handleUpdateStage(
+    topicId: string,
+    stageId: string,
+    input: { name?: string; hint?: string | null },
+  ) {
+    await updateStage({ topicId, stageId, ...input }).unwrap()
+  }
+
+  async function handleReorderPublications(
+    topicId: string,
+    stageId: string,
+    publicationIds: string[],
+  ) {
+    await reorderPublications({ topicId, stageId, publicationIds }).unwrap()
+  }
+
+  async function handleUpdatePublicationLabel(
+    publicationId: string,
+    label: string,
+  ) {
+    await updatePublication({ publicationId, label }).unwrap()
   }
 
   return {
     sourceTopics,
-    isDemo,
+    isLoading,
+    isError,
+    refetch,
     handleCreateTopic,
     isCreatingTopic,
+    handleCreateStage,
+    isCreatingStage,
+    handleReorderStages,
+    handleUpdateStage,
+    handleReorderPublications,
+    handleUpdatePublicationLabel,
   }
 }

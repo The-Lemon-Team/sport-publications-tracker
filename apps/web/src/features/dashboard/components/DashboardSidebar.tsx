@@ -2,6 +2,7 @@ import {
   BarChart3,
   BookOpen,
   CalendarDays,
+  Home,
   LayoutGrid,
   LogOut,
   Moon,
@@ -12,6 +13,7 @@ import {
   Users,
   type LucideIcon,
 } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { useDispatch, useSelector } from 'react-redux'
 import { useNavigate } from 'react-router-dom'
 import { cn } from '@/lib/utils'
@@ -22,7 +24,8 @@ import type { SidebarUserStats } from '@/features/dashboard/lib/sidebar-user-sta
 import {
   DASHBOARD_NAV,
   DASHBOARD_PATHS,
-  type DashboardNavItem,
+  navLabelKey,
+  type DashboardNavId,
 } from '@/features/dashboard/lib/nav'
 import { useTheme } from '@/features/theme/ThemeProvider'
 import { BrandMark } from '@/components/BrandMark'
@@ -30,33 +33,34 @@ import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
 
 type NavItem = {
-  label: DashboardNavItem
+  id: DashboardNavId
   icon: LucideIcon
 }
 
-const NAV: { section: string; items: NavItem[] }[] = [
+const NAV: { sectionKey: 'nav.section.workspace' | 'nav.section.agency'; items: NavItem[] }[] = [
   {
-    section: 'Workspace',
+    sectionKey: 'nav.section.workspace',
     items: [
-      { label: DASHBOARD_NAV.content, icon: LayoutGrid },
-      { label: DASHBOARD_NAV.topics, icon: BookOpen },
-      { label: DASHBOARD_NAV.broadcasts, icon: Radio },
-      { label: DASHBOARD_NAV.analytics, icon: BarChart3 },
-      { label: DASHBOARD_NAV.calendar, icon: CalendarDays },
+      { id: DASHBOARD_NAV.home, icon: Home },
+      { id: DASHBOARD_NAV.content, icon: LayoutGrid },
+      { id: DASHBOARD_NAV.topics, icon: BookOpen },
+      { id: DASHBOARD_NAV.broadcasts, icon: Radio },
+      { id: DASHBOARD_NAV.analytics, icon: BarChart3 },
+      { id: DASHBOARD_NAV.calendar, icon: CalendarDays },
     ],
   },
   {
-    section: 'Agency',
+    sectionKey: 'nav.section.agency',
     items: [
-      { label: DASHBOARD_NAV.team, icon: Users },
-      { label: DASHBOARD_NAV.achievements, icon: Trophy },
-      { label: DASHBOARD_NAV.settings, icon: Settings },
+      { id: DASHBOARD_NAV.team, icon: Users },
+      { id: DASHBOARD_NAV.achievements, icon: Trophy },
+      { id: DASHBOARD_NAV.settings, icon: Settings },
     ],
   },
 ]
 
 type DashboardSidebarProps = {
-  active: DashboardNavItem
+  active: DashboardNavId
   userStats: SidebarUserStats
 }
 
@@ -64,6 +68,7 @@ export function DashboardSidebar({
   active,
   userStats,
 }: DashboardSidebarProps) {
+  const { t } = useTranslation()
   const user = useSelector(selectAuthUser)
   const dispatch = useDispatch()
   const navigate = useNavigate()
@@ -95,18 +100,18 @@ export function DashboardSidebar({
 
         <nav className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto">
           {NAV.map((group) => (
-            <div key={group.section} className="flex flex-col gap-1">
+            <div key={group.sectionKey} className="flex flex-col gap-1">
               <p className="px-2 pb-1 text-[10px] font-semibold uppercase tracking-wider text-sidebar-foreground/50">
-                {group.section}
+                {t(group.sectionKey)}
               </p>
               {group.items.map((item) => {
                 const Icon = item.icon
-                const isActive = active === item.label
+                const isActive = active === item.id
                 return (
                   <button
-                    key={item.label}
+                    key={item.id}
                     type="button"
-                    onClick={() => navigate(DASHBOARD_PATHS[item.label])}
+                    onClick={() => navigate(DASHBOARD_PATHS[item.id])}
                     className={cn(
                       'flex items-center gap-3 rounded-lg px-2.5 py-2 text-left text-sm transition-colors',
                       isActive
@@ -115,7 +120,9 @@ export function DashboardSidebar({
                     )}
                   >
                     <Icon className="size-4 shrink-0" />
-                    <span className="flex-1 truncate">{item.label}</span>
+                    <span className="flex-1 truncate">
+                      {t(navLabelKey(item.id))}
+                    </span>
                     {isActive ? (
                       <span className="size-1.5 rounded-full bg-sidebar-primary" />
                     ) : null}
@@ -133,12 +140,12 @@ export function DashboardSidebar({
               <Switch
                 checked={isDark}
                 onCheckedChange={(checked) => setTheme(checked ? 'dark' : 'light')}
-                aria-label="Переключить тему"
+                aria-label={t('nav.toggleTheme')}
               />
               <Moon className="size-3.5 shrink-0 text-sidebar-foreground/60" />
             </div>
             <p className="mt-2 text-center text-[10px] text-sidebar-foreground/50">
-              {isDark ? 'Тёмная тема' : 'Светлая тема'}
+              {isDark ? t('nav.themeDark') : t('nav.themeLight')}
             </p>
           </div>
           <Button
@@ -148,7 +155,7 @@ export function DashboardSidebar({
             onClick={handleLogout}
           >
             <LogOut className="size-4" />
-            Выйти
+            {t('nav.logout')}
           </Button>
         </div>
       </aside>

@@ -26,12 +26,12 @@ export interface SubscribableSourceType {
 export const SUBSCRIBABLE_SOURCE_TYPES: SubscribableSourceType[] = [
   {
     id: 'vk',
-    kind: 'oauth',
+    kind: 'channel-url',
     baseSubscribers: 124300,
     drift: [-2, 9],
     defaultHandle: 'vk.com/studio.s10',
     addLabel: 'Группа VK',
-    addDescription: 'Авторизация через VK',
+    addDescription: 'Ссылка на группу vk.com/…',
   },
   {
     id: 'youtube',
@@ -69,6 +69,8 @@ export const CONNECTABLE_PROVIDERS = OAUTH_CONNECTABLE_PROVIDERS
 export interface LiveSubscriberSource {
   key: string
   sourceId?: string
+  /** OAuth connection id for VK / Instagram cards (revoke via API). */
+  oauthConnectionId?: string
   providerId: string
   handle: string
   baseSubscribers: number
@@ -106,23 +108,18 @@ export function getOAuthApiRouteId(providerId: string): string {
   return source?.oauthRouteId ?? providerId
 }
 
+import { OAuthProvider } from '@spt/shared'
+
 export function getOAuthConnectionProviderId(
-  apiProvider: 'VK' | 'FACEBOOK',
+  apiProvider: OAuthProvider,
 ): string {
-  if (apiProvider === 'FACEBOOK') return 'instagram'
-  return 'vk'
+  if (apiProvider === OAuthProvider.FACEBOOK) return 'instagram'
+  if (apiProvider === OAuthProvider.VK) return 'vk'
+  return apiProvider
 }
 
 export function providerOf(id: string) {
   return getProviderUi(id)
-}
-
-export function seedSubscriberCount(handle: string, fallback: number): number {
-  let hash = 0
-  for (let i = 0; i < handle.length; i++) {
-    hash = (hash * 31 + handle.charCodeAt(i)) | 0
-  }
-  return fallback + (Math.abs(hash) % 50_000)
 }
 
 export function parseYouTubeChannelInput(
@@ -156,6 +153,33 @@ export function parseYouTubeChannelInput(
   }
 
   return { handle: trimmed, key: `youtube:${trimmed.toLowerCase()}` }
+}
+
+export function parseVkGroupInput(
+  input: string,
+): { handle: string; key: string } | null {
+  const trimmed = input.trim()
+  if (!trimmed) return null
+
+  const urlMatch = trimmed.match(
+    /(?:https?:\/\/)?(?:www\.)?vk\.(?:com|ru)\/(club|public|event)?(\d+|[\w.-]+)/i,
+  )
+  if (urlMatch) {
+    const slug = urlMatch[2]
+    const handle = `vk.com/${slug}`
+    return { handle, key: `vk:${slug.toLowerCase()}` }
+  }
+
+  if (/^\d+$/.test(trimmed)) {
+    return { handle: `vk.com/club${trimmed}`, key: `vk:${trimmed}` }
+  }
+
+  if (/^[\w.-]+$/.test(trimmed)) {
+    const normalized = trimmed.toLowerCase()
+    return { handle: `vk.com/${normalized}`, key: `vk:${normalized}` }
+  }
+
+  return null
 }
 
 export function loadStoredYouTubeChannels(): StoredYouTubeChannel[] {

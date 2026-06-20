@@ -1,10 +1,14 @@
 import type { ComponentType } from 'react'
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import {
+  Check,
   ChevronDown,
   Eye,
   Layers3,
   MessageCircle,
+  Pencil,
+  Plus,
   ThumbsUp,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -15,6 +19,9 @@ import {
   formatNumber,
 } from '@/lib/dashboard-utils'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { AddStageDialog } from './AddStageDialog'
+import { SortableStageList } from './SortableStageList'
 import { StageRow } from './StageRow'
 
 function SummaryCard({
@@ -58,13 +65,45 @@ function SummaryCard({
 export function TopicSection({
   topic,
   onAddPublication,
+  onMetricsSaved,
+  onCreateStage,
+  onReorderStages,
+  onUpdateStage,
+  onUpdatePublicationLabel,
+  onReorderPublications,
+  isCreatingStage = false,
   nested = false,
 }: {
   topic: TopicView
   onAddPublication: (topicId: string, stageId: string) => void
+  onMetricsSaved?: (
+    publicationId: string,
+    metrics: { likes: number; comments: number },
+    historyEntry: import('@spt/shared').MetricHistoryEntryDto,
+  ) => void
+  onCreateStage?: (
+    topicId: string,
+    input: { name: string; hint?: string },
+  ) => Promise<void>
+  onReorderStages?: (topicId: string, stageIds: string[]) => void
+  onUpdateStage?: (
+    topicId: string,
+    stageId: string,
+    input: { name?: string; hint?: string | null },
+  ) => void
+  onUpdatePublicationLabel?: (publicationId: string, label: string) => void
+  onReorderPublications?: (
+    topicId: string,
+    stageId: string,
+    publicationIds: string[],
+  ) => void
+  isCreatingStage?: boolean
   nested?: boolean
 }) {
+  const { t } = useTranslation()
   const [open, setOpen] = useState(true)
+  const [isEditing, setIsEditing] = useState(false)
+  const [stageDialogOpen, setStageDialogOpen] = useState(false)
   const totals = aggregateTopicView(topic)
   const counts = countPublicationViews(topic)
 
@@ -134,38 +173,61 @@ export function TopicSection({
             </div>
           </div>
 
-          <div
-            className={cn(
-              'grid gap-1.5',
-              nested
-                ? 'grid-cols-4'
-                : 'grid-cols-2 gap-2 sm:grid-cols-4',
-            )}
-          >
-            <SummaryCard
-              label="Views"
-              value={formatNumber(totals.views)}
-              icon={Eye}
-              compact={nested}
-            />
-            <SummaryCard
-              label="Comments"
-              value={formatNumber(totals.comments)}
-              icon={MessageCircle}
-              compact={nested}
-            />
-            <SummaryCard
-              label="Likes"
-              value={formatNumber(totals.likes)}
-              icon={ThumbsUp}
-              compact={nested}
-            />
-            <SummaryCard
-              label="Stages"
-              value={String(topic.stages.length)}
-              icon={Layers3}
-              compact={nested}
-            />
+          <div className="flex flex-wrap items-center gap-1.5">
+            <div
+              className={cn(
+                'grid gap-1.5',
+                nested
+                  ? 'grid-cols-4'
+                  : 'grid-cols-2 gap-2 sm:grid-cols-4',
+              )}
+            >
+              <SummaryCard
+                label={t('dashboard.summary.views')}
+                value={formatNumber(totals.views)}
+                icon={Eye}
+                compact={nested}
+              />
+              <SummaryCard
+                label={t('dashboard.summary.comments')}
+                value={formatNumber(totals.comments)}
+                icon={MessageCircle}
+                compact={nested}
+              />
+              <SummaryCard
+                label={t('dashboard.summary.likes')}
+                value={formatNumber(totals.likes)}
+                icon={ThumbsUp}
+                compact={nested}
+              />
+              <SummaryCard
+                label={t('dashboard.summary.stages')}
+                value={String(topic.stages.length)}
+                icon={Layers3}
+                compact={nested}
+              />
+            </div>
+
+            {onReorderStages ? (
+              <Button
+                type="button"
+                variant={isEditing ? 'default' : 'outline'}
+                size={nested ? 'sm' : 'default'}
+                className={cn(
+                  'shrink-0',
+                  nested ? 'size-8 px-0' : 'size-9 px-0',
+                )}
+                onClick={() => setIsEditing((value) => !value)}
+                aria-label={isEditing ? 'Завершить редактирование' : 'Редактировать тему'}
+                title={isEditing ? 'Готово' : 'Редактировать'}
+              >
+                {isEditing ? (
+                  <Check className={nested ? 'size-3.5' : 'size-4'} />
+                ) : (
+                  <Pencil className={nested ? 'size-3.5' : 'size-4'} />
+                )}
+              </Button>
+            ) : null}
           </div>
         </div>
       </div>
@@ -177,18 +239,64 @@ export function TopicSection({
             nested ? 'gap-2 p-2.5' : 'gap-3 p-4 md:p-5',
           )}
         >
-          {topic.stages.map((stage, i) => (
-            <StageRow
-              key={stage.id}
-              stage={stage}
-              index={i}
+          {onReorderStages ? (
+            <SortableStageList
+              stages={topic.stages}
               compact={nested}
+              isEditing={isEditing}
               onAddPublication={(stageId) =>
                 onAddPublication(topic.id, stageId)
               }
+              onMetricsSaved={onMetricsSaved}
+              onReorder={(stageIds) => onReorderStages(topic.id, stageIds)}
+              onStageChange={(stageId, input) =>
+                onUpdateStage?.(topic.id, stageId, input)
+              }
+              onPublicationLabelChange={onUpdatePublicationLabel}
+              onReorderPublications={(stageId, publicationIds) =>
+                onReorderPublications?.(topic.id, stageId, publicationIds)
+              }
             />
-          ))}
+          ) : (
+            topic.stages.map((stage, i) => (
+              <StageRow
+                key={stage.id}
+                stage={stage}
+                index={i}
+                compact={nested}
+                onAddPublication={(stageId) =>
+                  onAddPublication(topic.id, stageId)
+                }
+                onMetricsSaved={onMetricsSaved}
+              />
+            ))
+          )}
+
+          {onCreateStage ? (
+            <Button
+              type="button"
+              variant="outline"
+              size={nested ? 'sm' : 'default'}
+              className={cn(
+                'w-full border-dashed',
+                nested ? 'h-8 text-xs' : undefined,
+              )}
+              onClick={() => setStageDialogOpen(true)}
+            >
+              <Plus className={nested ? 'size-3.5' : 'size-4'} />
+              Новый этап
+            </Button>
+          ) : null}
         </div>
+      ) : null}
+
+      {onCreateStage ? (
+        <AddStageDialog
+          open={stageDialogOpen}
+          onOpenChange={setStageDialogOpen}
+          isSubmitting={isCreatingStage}
+          onSubmit={(input) => onCreateStage(topic.id, input)}
+        />
       ) : null}
     </div>
   )

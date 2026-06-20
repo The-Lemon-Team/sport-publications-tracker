@@ -89,6 +89,68 @@ export function isDateInRange(
   return time >= start.getTime() && time <= end.getTime()
 }
 
+export type DateRangePreset = 'day' | 'week' | 'month'
+
+export const DATE_RANGE_PRESET_LABELS: Record<DateRangePreset, string> = {
+  day: 'День',
+  week: 'Неделя',
+  month: 'Месяц',
+}
+
+export function startOfWeek(date: Date): Date {
+  const d = startOfDay(date)
+  const diff = (d.getDay() + 6) % 7
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate() - diff)
+}
+
+export function endOfWeek(date: Date): Date {
+  const start = startOfWeek(date)
+  return new Date(start.getFullYear(), start.getMonth(), start.getDate() + 6)
+}
+
+export function endOfMonth(date: Date): Date {
+  return new Date(date.getFullYear(), date.getMonth() + 1, 0)
+}
+
+function clampEndToToday(end: Date, today: Date): Date {
+  return end.getTime() > today.getTime() ? today : end
+}
+
+export function getDateRangePreset(
+  preset: DateRangePreset,
+  referenceDate: Date = new Date(),
+): DateRangeValue {
+  const today = startOfDay(referenceDate)
+
+  switch (preset) {
+    case 'day':
+      return { enabled: true, from: today, to: today }
+    case 'week': {
+      const from = startOfWeek(today)
+      const to = clampEndToToday(endOfWeek(today), today)
+      return { enabled: true, from, to }
+    }
+    case 'month': {
+      const from = startOfMonth(today)
+      const to = clampEndToToday(endOfMonth(today), today)
+      return { enabled: true, from, to }
+    }
+  }
+}
+
+export function matchesDateRangePreset(
+  range: DateRangeValue,
+  preset: DateRangePreset,
+  referenceDate: Date = new Date(),
+): boolean {
+  if (!range.enabled || !range.from || !range.to) return false
+  const expected = getDateRangePreset(preset, referenceDate)
+  if (!expected.from || !expected.to) return false
+  return (
+    sameDay(range.from, expected.from) && sameDay(range.to, expected.to)
+  )
+}
+
 export function formatDateRangeLabel(range: DateRangeValue): string {
   if (!range.enabled || !range.from || !range.to) {
     return 'Период'

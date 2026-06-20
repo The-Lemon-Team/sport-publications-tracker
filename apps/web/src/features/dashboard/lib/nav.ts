@@ -1,19 +1,23 @@
 export const DASHBOARD_NAV = {
-  content: 'Контент-сетка',
-  topics: 'Темы',
-  broadcasts: 'Эфиры',
-  analytics: 'Аналитика',
-  calendar: 'Календарь',
-  team: 'Команда',
-  achievements: 'Достижения',
-  settings: 'Настройки',
+  home: 'home',
+  content: 'content',
+  topics: 'topics',
+  broadcasts: 'broadcasts',
+  analytics: 'analytics',
+  calendar: 'calendar',
+  team: 'team',
+  achievements: 'achievements',
+  settings: 'settings',
 } as const
 
-export type DashboardNavItem =
-  (typeof DASHBOARD_NAV)[keyof typeof DASHBOARD_NAV]
+export type DashboardNavId = (typeof DASHBOARD_NAV)[keyof typeof DASHBOARD_NAV]
 
-export const DASHBOARD_PATHS: Record<DashboardNavItem, string> = {
-  [DASHBOARD_NAV.content]: '/',
+/** @deprecated Use DashboardNavId */
+export type DashboardNavItem = DashboardNavId
+
+export const DASHBOARD_PATHS: Record<DashboardNavId, string> = {
+  [DASHBOARD_NAV.home]: '/',
+  [DASHBOARD_NAV.content]: '/content',
   [DASHBOARD_NAV.topics]: '/topics',
   [DASHBOARD_NAV.broadcasts]: '/broadcasts',
   [DASHBOARD_NAV.analytics]: '/analytics',
@@ -23,63 +27,45 @@ export const DASHBOARD_PATHS: Record<DashboardNavItem, string> = {
   [DASHBOARD_NAV.settings]: '/settings',
 }
 
-export function navFromPath(pathname: string): DashboardNavItem {
+export function navFromPath(pathname: string): DashboardNavId {
+  if (pathname === '/' || pathname === '') {
+    return DASHBOARD_NAV.home
+  }
+
   const sorted = Object.entries(DASHBOARD_PATHS).sort(
     ([, a], [, b]) => b.length - a.length,
   )
 
   for (const [nav, path] of sorted) {
     if (path !== '/' && pathname.startsWith(path)) {
-      return nav as DashboardNavItem
+      return nav as DashboardNavId
     }
   }
 
-  return DASHBOARD_NAV.content
+  return DASHBOARD_NAV.home
 }
 
-export const UNDER_DEVELOPMENT_PAGES: DashboardNavItem[] = [
+export const UNDER_DEVELOPMENT_PAGES: DashboardNavId[] = [
   DASHBOARD_NAV.broadcasts,
   DASHBOARD_NAV.analytics,
   DASHBOARD_NAV.team,
   DASHBOARD_NAV.achievements,
 ]
 
-export const PAGES_WITH_CUSTOM_HEADER = new Set<DashboardNavItem>([
+export const PAGES_WITH_CUSTOM_HEADER = new Set<DashboardNavId>([
+  DASHBOARD_NAV.home,
   DASHBOARD_NAV.content,
   DASHBOARD_NAV.topics,
 ])
 
-export const PAGE_TITLES: Record<DashboardNavItem, { title: string; subtitle: string }> = {
-  [DASHBOARD_NAV.content]: {
-    title: 'Content Metrics',
-    subtitle: 'Трекинг публикаций по темам, этапам и площадкам',
-  },
-  [DASHBOARD_NAV.topics]: {
-    title: 'Темы',
-    subtitle: 'Список контент-тем и публикаций',
-  },
-  [DASHBOARD_NAV.broadcasts]: {
-    title: 'Эфиры',
-    subtitle: 'Управление прямыми трансляциями',
-  },
-  [DASHBOARD_NAV.analytics]: {
-    title: 'Аналитика',
-    subtitle: 'Сводная аналитика по площадкам',
-  },
-  [DASHBOARD_NAV.calendar]: {
-    title: 'Календарь',
-    subtitle: 'Публикации по датам',
-  },
-  [DASHBOARD_NAV.team]: {
-    title: 'Команда',
-    subtitle: 'Участники и роли',
-  },
-  [DASHBOARD_NAV.achievements]: {
-    title: 'Достижения',
-    subtitle: 'Цели и прогресс сезона',
-  },
-  [DASHBOARD_NAV.settings]: {
-    title: 'Настройки',
-    subtitle: 'Профиль и параметры аккаунта',
-  },
+export function pageTitleKey(navId: DashboardNavId): string {
+  return `pages.${navId}.title`
+}
+
+export function pageSubtitleKey(navId: DashboardNavId): string {
+  return `pages.${navId}.subtitle`
+}
+
+export function navLabelKey(navId: DashboardNavId): string {
+  return `nav.${navId}`
 }

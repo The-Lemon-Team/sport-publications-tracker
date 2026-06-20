@@ -1,7 +1,9 @@
 import type { Metrics, TopicDto } from '@spt/shared'
 import {
   MetricSnapshotKind,
+  MetricTrackingMode,
   PublicationStatus,
+  type MetricHistoryEntryDto,
   type PublicationDto,
 } from '@spt/shared'
 import {
@@ -64,7 +66,16 @@ export interface PublicationView {
   stageId: string
   url: string
   status: PublicationViewStatus
+  metricTrackingMode: PublicationDto['metricTrackingMode']
   metrics: DashboardMetrics
+  metricDeltas: { views: number; likes: number; comments: number }
+  /** Significant negative deltas from recent live→manual transition. */
+  highlightMetricDeltas?: {
+    views: number
+    likes: number
+    comments: number
+  } | null
+  metricHistory?: MetricHistoryEntryDto[]
 }
 
 export interface StageView {
@@ -83,12 +94,29 @@ export interface TopicView {
   stages: StageView[]
 }
 
+function computeMetricDeltas(
+  current: DashboardMetrics,
+  atPublish: ReturnType<typeof snapshotToMetrics> | undefined,
+): { views: number; likes: number; comments: number } {
+  if (!atPublish) {
+    return { views: 0, likes: 0, comments: 0 }
+  }
+  return {
+    views: current.views - atPublish.views,
+    likes: current.likes - atPublish.likes,
+    comments: current.comments - atPublish.comments,
+  }
+}
+
 function toPublicationView(pub: PublicationDto, stageId: string): PublicationView {
+  const liveSnapshot = getSnapshot(pub.snapshots, MetricSnapshotKind.LIVE)
+  const atPublishSnapshot = getSnapshot(pub.snapshots, MetricSnapshotKind.AT_PUBLISH)
   const metrics = toDashboardMetrics(
-    snapshotToMetrics(
-      getSnapshot(pub.snapshots, MetricSnapshotKind.LIVE) ??
-        getSnapshot(pub.snapshots, MetricSnapshotKind.AT_PUBLISH),
-    ),
+    snapshotToMetrics(liveSnapshot ?? atPublishSnapshot),
+  )
+  const metricDeltas = computeMetricDeltas(
+    metrics,
+    atPublishSnapshot ? snapshotToMetrics(atPublishSnapshot) : undefined,
   )
 
   let status: PublicationViewStatus = 'scheduled'
@@ -101,7 +129,11 @@ function toPublicationView(pub: PublicationDto, stageId: string): PublicationVie
     stageId,
     url: pub.postUrl ?? '',
     status,
+    metricTrackingMode:
+      pub.metricTrackingMode ?? MetricTrackingMode.MANUAL,
     metrics,
+    metricDeltas,
+    highlightMetricDeltas: pub.highlightMetricDeltas ?? null,
   }
 }
 
