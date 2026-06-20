@@ -8,7 +8,9 @@ import { AuthModule } from './auth/auth.module'
 import { OAuthModule } from './oauth/oauth.module'
 import { TopicsModule } from './topics/topics.module'
 import { YouTubeModule } from './youtube/youtube.module'
+import { InstagramModule } from './instagram/instagram.module'
 import { SubscribersModule } from './subscribers/subscribers.module'
+import { PublicationsModule } from './publications/publications.module'
 
 @Module({
   imports: [
@@ -20,7 +22,9 @@ import { SubscribersModule } from './subscribers/subscribers.module'
     OAuthModule,
     TopicsModule,
     YouTubeModule,
+    InstagramModule,
     SubscribersModule,
+    PublicationsModule,
   ],
 })
 export class AppModule {}

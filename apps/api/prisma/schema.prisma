@@ -38,6 +38,18 @@ enum MetricSnapshotKind {
   LIVE       // актуальная статистика, обновляется cron-ом
 }
 
+/** How publication metrics are maintained */
+enum MetricTrackingMode {
+  AUTOMATIC // live sync from platform API / cron
+  MANUAL    // user edits counts on any provider when manual mode is enabled
+}
+
+/** Origin of a metric history row */
+enum MetricCaptureSource {
+  SYNC   // automatic fetch (API, cron, import)
+  MANUAL // user-entered value
+}
+
 enum OAuthProvider {
   VK
   FACEBOOK // Instagram Graph API
@@ -138,20 +150,22 @@ model Stage {
 }
 
 model Publication {
-  id          String            @id @default(cuid())
-  stageId     String
-  provider    Provider
-  channelName String
-  label       String?
-  postUrl     String?
-  status      PublicationStatus @default(PLANNED)
-  publishedAt DateTime?
-  order       Int               @default(0)
-  createdAt   DateTime          @default(now())
-  updatedAt   DateTime          @updatedAt
+  id                  String              @id @default(cuid())
+  stageId             String
+  provider            Provider
+  channelName         String
+  label               String?
+  postUrl             String?
+  status              PublicationStatus   @default(PLANNED)
+  publishedAt         DateTime?
+  metricTrackingMode  MetricTrackingMode  @default(AUTOMATIC)
+  order               Int                 @default(0)
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
 
-  stage     Stage            @relation(fields: [stageId], references: [id], onDelete: Cascade)
-  snapshots MetricSnapshot[]
+  stage          Stage                @relation(fields: [stageId], references: [id], onDelete: Cascade)
+  snapshots      MetricSnapshot[]
+  metricHistory  MetricHistoryEntry[]
 
   @@index([stageId, order])
   @@index([stageId, provider])
@@ -173,6 +187,25 @@ model MetricSnapshot {
   @@unique([publicationId, kind])
   @@index([publicationId])
   @@map("metric_snapshots")
+}
+
+model MetricHistoryEntry {
+  id            String              @id @default(cuid())
+  publicationId String
+  source        MetricCaptureSource
+  likes         Int
+  comments      Int
+  views         Int                 @default(0)
+  shares        Int                 @default(0)
+  likesDelta    Int                 @default(0)
+  commentsDelta Int                 @default(0)
+  viewsDelta    Int                 @default(0)
+  capturedAt    DateTime            @default(now())
+
+  publication Publication @relation(fields: [publicationId], references: [id], onDelete: Cascade)
+
+  @@index([publicationId, capturedAt(sort: Desc)])
+  @@map("metric_history_entries")
 }
 
 // ─── Live subscriber tracking ────────────────────────────────────────────────

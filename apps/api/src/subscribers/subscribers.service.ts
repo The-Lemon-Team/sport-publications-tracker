@@ -12,6 +12,9 @@ import type {
   SubscriberSourceDto,
 } from '@spt/shared'
 import { PrismaService } from '../prisma/prisma.service'
+import { VkService } from '../vk/vk.service'
+import { parseVkGroupInput } from '../vk/vk-group.util'
+import { parseYouTubeChannelInput } from '../youtube/youtube-channel.util'
 import { YouTubeService } from '../youtube/youtube.service'
 
 const HISTORY_PAGE_SIZE = 20
@@ -21,6 +24,7 @@ export class SubscribersService {
   constructor(
     @Inject(PrismaService) private readonly prisma: PrismaService,
     @Inject(YouTubeService) private readonly youtube: YouTubeService,
+    @Inject(VkService) private readonly vk: VkService,
   ) {}
 
   async findAllForUser(userId: string): Promise<SubscriberSourceDto[]> {
@@ -32,6 +36,82 @@ export class SubscribersService {
     return Promise.all(
       sources.map(async (source) => this.toLiveDto(source, 0)),
     )
+  }
+
+  async deleteSource(userId: string, sourceId: string): Promise<void> {
+    const source = await this.prisma.subscriberSource.findUnique({
+      where: { id: sourceId },
+    })
+
+    if (!source) {
+      throw new NotFoundException('Subscriber source not found')
+    }
+    if (source.userId !== userId) {
+      throw new ForbiddenException()
+    }
+
+    await this.prisma.subscriberSource.delete({
+      where: { id: sourceId },
+    })
+  }
+
+  async createSource(
+    userId: string,
+    input: string,
+  ): Promise<SubscriberSourceDto> {
+    const trimmed = input.trim()
+    if (parseVkGroupInput(trimmed)) {
+      return this.createVkSource(userId, trimmed)
+    }
+    if (parseYouTubeChannelInput(trimmed)) {
+      return this.createYouTubeSource(userId, trimmed)
+    }
+    throw new BadRequestException('Invalid channel or group URL')
+  }
+
+  async createVkSource(
+    userId: string,
+    input: string,
+  ): Promise<SubscriberSourceDto> {
+    const metrics = await this.vk.getGroupMetrics(input)
+    const count = metrics.subscriberCount
+    const handle = metrics.handle ?? input.trim()
+    const now = new Date()
+
+    const source = await this.prisma.subscriberSource.upsert({
+      where: {
+        userId_provider_externalId: {
+          userId,
+          provider: Provider.VK,
+          externalId: metrics.groupId,
+        },
+      },
+      create: {
+        userId,
+        provider: Provider.VK,
+        externalId: metrics.groupId,
+        handle,
+        title: metrics.title,
+        pollInput: metrics.groupId,
+        subscriberCount: count,
+        lastChangedAt: now,
+        lastCheckedAt: now,
+        snapshots: {
+          create: {
+            count,
+            delta: 0,
+          },
+        },
+      },
+      update: {
+        handle,
+        title: metrics.title,
+        pollInput: metrics.groupId,
+        lastCheckedAt: now,
+      },
+    })
+
+    return this.toLiveDto(source, 0)
   }
 
   async createYouTubeSource(
@@ -90,55 +170,127 @@ export class SubscribersService {
 
   async syncForUser(userId: string): Promise<SubscriberSourceDto[]> {
     const sources = await this.prisma.subscriberSource.findMany({
-      where: { userId, provider: Provider.YOUTUBE },
+      where: {
+        userId,
+        provider: { in: [Provider.YOUTUBE, Provider.VK] },
+      },
     })
 
     const results: SubscriberSourceDto[] = []
 
     for (const source of sources) {
-      const metrics = await this.youtube.getChannelMetrics(source.pollInput)
-      if (metrics.hiddenSubscribers) {
-        results.push(await this.toLiveDto(source, 0))
+      if (source.provider === Provider.VK) {
+        results.push(await this.syncVkSource(source))
         continue
       }
-
-      const newCount = metrics.subscriberCount ?? source.subscriberCount ?? 0
-      const oldCount = source.subscriberCount
-      const now = new Date()
-      let sessionDelta = 0
-
-      if (oldCount === null) {
-        await this.prisma.subscriberSnapshot.create({
-          data: { sourceId: source.id, count: newCount, delta: 0 },
-        })
-      } else if (newCount !== oldCount) {
-        sessionDelta = newCount - oldCount
-        await this.prisma.subscriberSnapshot.create({
-          data: {
-            sourceId: source.id,
-            count: newCount,
-            delta: sessionDelta,
-          },
-        })
-      }
-
-      const updated = await this.prisma.subscriberSource.update({
-        where: { id: source.id },
-        data: {
-          subscriberCount: newCount,
-          handle: metrics.handle ?? source.handle,
-          title: metrics.title ?? source.title,
-          lastCheckedAt: now,
-          ...(oldCount === null || newCount !== oldCount
-            ? { lastChangedAt: now }
-            : {}),
-        },
-      })
-
-      results.push(await this.toLiveDto(updated, sessionDelta))
+      results.push(await this.syncYouTubeSource(source))
     }
 
     return results
+  }
+
+  private async syncYouTubeSource(
+    source: {
+      id: string
+      provider: Provider
+      externalId: string
+      handle: string | null
+      title: string | null
+      pollInput: string
+      subscriberCount: number | null
+      lastChangedAt: Date | null
+      lastCheckedAt: Date | null
+    },
+  ): Promise<SubscriberSourceDto> {
+    const metrics = await this.youtube.getChannelMetrics(source.pollInput)
+    if (metrics.hiddenSubscribers) {
+      return this.toLiveDto(source, 0)
+    }
+
+    const newCount = metrics.subscriberCount ?? source.subscriberCount ?? 0
+    const oldCount = source.subscriberCount
+    const now = new Date()
+    let sessionDelta = 0
+
+    if (oldCount === null) {
+      await this.prisma.subscriberSnapshot.create({
+        data: { sourceId: source.id, count: newCount, delta: 0 },
+      })
+    } else if (newCount !== oldCount) {
+      sessionDelta = newCount - oldCount
+      await this.prisma.subscriberSnapshot.create({
+        data: {
+          sourceId: source.id,
+          count: newCount,
+          delta: sessionDelta,
+        },
+      })
+    }
+
+    const updated = await this.prisma.subscriberSource.update({
+      where: { id: source.id },
+      data: {
+        subscriberCount: newCount,
+        handle: metrics.handle ?? source.handle,
+        title: metrics.title ?? source.title,
+        lastCheckedAt: now,
+        ...(oldCount === null || newCount !== oldCount
+          ? { lastChangedAt: now }
+          : {}),
+      },
+    })
+
+    return this.toLiveDto(updated, sessionDelta)
+  }
+
+  private async syncVkSource(
+    source: {
+      id: string
+      provider: Provider
+      externalId: string
+      handle: string | null
+      title: string | null
+      pollInput: string
+      subscriberCount: number | null
+      lastChangedAt: Date | null
+      lastCheckedAt: Date | null
+    },
+  ): Promise<SubscriberSourceDto> {
+    const metrics = await this.vk.getGroupMetrics(source.pollInput)
+    const newCount = metrics.subscriberCount
+    const oldCount = source.subscriberCount
+    const now = new Date()
+    let sessionDelta = 0
+
+    if (oldCount === null) {
+      await this.prisma.subscriberSnapshot.create({
+        data: { sourceId: source.id, count: newCount, delta: 0 },
+      })
+    } else if (newCount !== oldCount) {
+      sessionDelta = newCount - oldCount
+      await this.prisma.subscriberSnapshot.create({
+        data: {
+          sourceId: source.id,
+          count: newCount,
+          delta: sessionDelta,
+        },
+      })
+    }
+
+    const updated = await this.prisma.subscriberSource.update({
+      where: { id: source.id },
+      data: {
+        subscriberCount: newCount,
+        handle: metrics.handle ?? source.handle,
+        title: metrics.title ?? source.title,
+        lastCheckedAt: now,
+        ...(oldCount === null || newCount !== oldCount
+          ? { lastChangedAt: now }
+          : {}),
+      },
+    })
+
+    return this.toLiveDto(updated, sessionDelta)
   }
 
   async getHistory(

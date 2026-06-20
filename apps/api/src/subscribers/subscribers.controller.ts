@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Inject,
   Param,
@@ -37,7 +38,15 @@ export class SubscribersController {
     @CurrentUser() user: RequestUser,
     @Body() body: CreateSubscriberSourceRequest,
   ): Promise<SubscriberSourceDto> {
-    return this.subscribers.createYouTubeSource(user.id, body.input)
+    return this.subscribers.createSource(user.id, body.input)
+  }
+
+  @Delete('sources/:id')
+  deleteSource(
+    @CurrentUser() user: RequestUser,
+    @Param('id') sourceId: string,
+  ): Promise<void> {
+    return this.subscribers.deleteSource(user.id, sourceId)
   }
 
   @Post('sync')

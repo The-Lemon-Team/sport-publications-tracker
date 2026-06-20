@@ -9,17 +9,18 @@ import {
   Req,
   Res,
   UseGuards,
+  forwardRef,
 } from '@nestjs/common'
 import type { Response } from 'express'
 import { OAuthProvider } from '@prisma/client'
 import type { OAuthConnectionDto } from '@spt/shared'
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard'
 import { CurrentUser, type RequestUser } from '../auth/decorators/current-user.decorator'
+import { InstagramService } from '../instagram/instagram.service'
 import { OAuthProviderGuard } from './guards/oauth-provider.guard'
 import { OAuthService } from './oauth.service'
 import type { OAuthProfile } from './oauth.types'
 
-const VkAuthGuard = OAuthProviderGuard('vkontakte')
 const FacebookAuthGuard = OAuthProviderGuard('facebook')
 
 interface OAuthRequest {
@@ -29,7 +30,11 @@ interface OAuthRequest {
 
 @Controller('oauth')
 export class OAuthController {
-  constructor(@Inject(OAuthService) private readonly oauth: OAuthService) {}
+  constructor(
+    @Inject(OAuthService) private readonly oauth: OAuthService,
+    @Inject(forwardRef(() => InstagramService))
+    private readonly instagram: InstagramService,
+  ) {}
 
   @Get('connections')
   @UseGuards(JwtAuthGuard)
@@ -78,23 +83,6 @@ export class OAuthController {
     res.redirect(this.oauth.buildAuthorizeUrl(mapped, user.id))
   }
 
-  // ─── VK ───────────────────────────────────────────────────────────────────
-
-  @Get('vk')
-  @UseGuards(VkAuthGuard)
-  vkAuthorize(): void {
-    // Passport redirects to VK
-  }
-
-  @Get('vk/callback')
-  @UseGuards(VkAuthGuard)
-  async vkCallback(
-    @Req() req: OAuthRequest,
-    @Res() res: Response,
-  ): Promise<void> {
-    await this.handleCallback(req, res)
-  }
-
   // ─── Facebook / Instagram ─────────────────────────────────────────────────
 
   @Get('facebook')
@@ -117,9 +105,9 @@ export class OAuthController {
     res: Response,
   ): Promise<void> {
     const stateRaw = req.query.state
-    const profile = req.user
+    const profileRaw = req.user
 
-    if (!stateRaw || !profile) {
+    if (!stateRaw || !profileRaw) {
       const fallback = this.oauth.buildCallbackRedirect(
         process.env.WEB_URL ?? 'http://localhost:5173',
         { success: false, error: 'missing_state_or_profile' },
@@ -130,6 +118,7 @@ export class OAuthController {
 
     try {
       const { userId, returnUrl, popup } = this.oauth.parseState(stateRaw)
+      const profile = await this.enrichProfile(profileRaw)
       await this.oauth.upsertConnection(userId, profile)
       res.redirect(
         this.oauth.buildCallbackRedirect(
@@ -157,6 +146,37 @@ export class OAuthController {
           popup,
         ),
       )
+    }
+  }
+
+  private async enrichProfile(profile: OAuthProfile): Promise<OAuthProfile> {
+    if (profile.provider !== OAuthProvider.FACEBOOK) {
+      return profile
+    }
+
+    try {
+      const account = await this.instagram.resolveBusinessAccount(
+        profile.accessToken,
+      )
+      const handle = account.username ? `@${account.username}` : profile.channelName
+
+      return {
+        ...profile,
+        externalAccountId: account.igUserId,
+        channelName: handle,
+        subscriberCount: account.followersCount,
+        metadata: {
+          ...profile.metadata,
+          facebookUserId: profile.externalAccountId,
+          igUserId: account.igUserId,
+          username: account.username,
+          pageId: account.pageId,
+          pageName: account.pageName,
+          profilePictureUrl: account.profilePictureUrl,
+        },
+      }
+    } catch {
+      return profile
     }
   }
 }

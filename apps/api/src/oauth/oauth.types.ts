@@ -9,6 +9,7 @@ export interface OAuthProfile {
   expiresAt: Date | null
   scopes: string[]
   metadata: Record<string, unknown>
+  subscriberCount?: number | null
 }
 
 export interface OAuthStatePayload {

@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common'
+import { Inject, Injectable, UnauthorizedException } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
 import { OAuthConnectionStatus, OAuthProvider, Prisma } from '@prisma/client'
 import type { OAuthConnectionDto } from '@spt/shared'
@@ -24,13 +24,17 @@ export class OAuthService {
       JSON.stringify({ userId, returnUrl, popup }),
     ).toString('base64url')
 
-    const routes: Record<OAuthProvider, string> = {
-      [OAuthProvider.VK]: '/api/oauth/vk',
+    const routes: Partial<Record<OAuthProvider, string>> = {
       [OAuthProvider.FACEBOOK]: '/api/oauth/facebook',
     }
 
+    const route = routes[provider]
+    if (!route) {
+      throw new Error(`OAuth is not configured for provider: ${provider}`)
+    }
+
     const apiUrl = this.config.getOrThrow<string>('API_URL')
-    return `${apiUrl}${routes[provider]}?state=${state}`
+    return `${apiUrl}${route}?state=${state}`
   }
 
   async upsertConnection(
@@ -46,6 +50,7 @@ export class OAuthService {
       scopes: profile.scopes,
       status: OAuthConnectionStatus.ACTIVE,
       expiresAt: profile.expiresAt,
+      subscriberCount: profile.subscriberCount ?? undefined,
       metadata: profile.metadata as Prisma.InputJsonValue,
     }
 
@@ -103,6 +108,25 @@ export class OAuthService {
     return this.crypto.decrypt(connection.refreshTokenEnc)
   }
 
+  async requireFacebookAccessToken(userId: string): Promise<string> {
+    const connection = await this.prisma.oAuthConnection.findFirst({
+      where: {
+        userId,
+        provider: OAuthProvider.FACEBOOK,
+        status: OAuthConnectionStatus.ACTIVE,
+      },
+      orderBy: { updatedAt: 'desc' },
+    })
+
+    if (!connection) {
+      throw new UnauthorizedException(
+        'Instagram is not connected. Authorize via Meta in Settings.',
+      )
+    }
+
+    return this.getDecryptedAccessToken(connection)
+  }
+
   parseState(state: string): OAuthStatePayload {
     const decoded = JSON.parse(
       Buffer.from(state, 'base64url').toString('utf8'),
@@ -126,7 +150,6 @@ export class OAuthService {
   mapRouteProvider(route: string): OAuthProvider | null {
     const normalized = route.toLowerCase()
     const map: Record<string, OAuthProvider> = {
-      vk: OAuthProvider.VK,
       facebook: OAuthProvider.FACEBOOK,
       instagram: OAuthProvider.FACEBOOK,
     }
