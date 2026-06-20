@@ -29,6 +29,22 @@ export const MetricSnapshotKind = {
 export type MetricSnapshotKind =
   (typeof MetricSnapshotKind)[keyof typeof MetricSnapshotKind]
 
+/** AUTOMATIC = platform API / cron; MANUAL = user-maintained counts */
+export const MetricTrackingMode = {
+  AUTOMATIC: 'AUTOMATIC',
+  MANUAL: 'MANUAL',
+} as const
+export type MetricTrackingMode =
+  (typeof MetricTrackingMode)[keyof typeof MetricTrackingMode]
+
+/** Origin of a metric history row */
+export const MetricCaptureSource = {
+  SYNC: 'SYNC',
+  MANUAL: 'MANUAL',
+} as const
+export type MetricCaptureSource =
+  (typeof MetricCaptureSource)[keyof typeof MetricCaptureSource]
+
 /** OAuth providers used for read-only stats access */
 export const OAuthProvider = {
   VK: 'VK',
@@ -60,6 +76,39 @@ export interface MetricSnapshotDto {
   capturedAt: string
 }
 
+export interface MetricHistoryEntryDto {
+  id: string
+  source: MetricCaptureSource
+  likes: number
+  comments: number
+  views: number
+  shares: number
+  likesDelta: number
+  commentsDelta: number
+  viewsDelta: number
+  capturedAt: string
+}
+
+export interface MetricHistoryPageDto {
+  items: MetricHistoryEntryDto[]
+  nextCursor: string | null
+}
+
+export interface UpdateManualMetricsRequest {
+  likes: number
+  comments: number
+}
+
+export interface UpdateMetricTrackingModeRequest {
+  metricTrackingMode: MetricTrackingMode
+}
+
+export interface UpdatePublicationRequest {
+  label?: string
+  postUrl?: string | null
+  metricTrackingMode?: MetricTrackingMode
+}
+
 export interface PublicationDto {
   id: string
   provider: Provider
@@ -68,8 +117,15 @@ export interface PublicationDto {
   postUrl: string | null
   status: PublicationStatus
   publishedAt: string | null
+  metricTrackingMode: MetricTrackingMode
   order: number
   snapshots: MetricSnapshotDto[]
+  /** Significant negative deltas from the latest history row (manual cards). */
+  highlightMetricDeltas?: {
+    views: number
+    likes: number
+    comments: number
+  } | null
 }
 
 export interface StageDto {
@@ -90,6 +146,24 @@ export interface TopicDto {
 
 export interface CreateTopicRequest {
   name: string
+}
+
+export interface CreateStageRequest {
+  name: string
+  hint?: string
+}
+
+export interface ReorderStagesRequest {
+  stageIds: string[]
+}
+
+export interface UpdateStageRequest {
+  name?: string
+  hint?: string | null
+}
+
+export interface ReorderPublicationsRequest {
+  publicationIds: string[]
 }
 
 export interface OAuthConnectionDto {
@@ -139,6 +213,9 @@ export interface CreatePublicationRequest {
   label?: string
   postUrl?: string
   status?: PublicationStatus
+  metricTrackingMode?: MetricTrackingMode
+  /** Initial stats fetched when adding (e.g. YouTube URL lookup). */
+  initialMetrics?: Pick<Metrics, 'views' | 'likes' | 'comments'>
 }
 
 /** Public video stats from YouTube Data API (server API key, no user OAuth). */
@@ -162,6 +239,40 @@ export interface YouTubeChannelMetricsDto {
   thumbnailUrl: string | null
   subscriberCount: number | null
   hiddenSubscribers: boolean
+}
+
+/** Public group stats from VK API (service token, no user OAuth). */
+export interface VkGroupMetricsDto {
+  groupId: string
+  title: string | null
+  handle: string | null
+  subscriberCount: number
+}
+
+/** Instagram account stats from Graph API (user OAuth via Meta). */
+export interface InstagramAccountMetricsDto {
+  igUserId: string
+  title: string | null
+  handle: string | null
+  username: string | null
+  profilePictureUrl: string | null
+  followerCount: number
+}
+
+/** Instagram post stats from Graph API (user OAuth via Meta). */
+export interface InstagramMediaMetricsDto {
+  mediaId: string
+  shortcode: string
+  igUserId: string
+  caption: string | null
+  mediaType: string | null
+  permalink: string
+  publishedAt: string | null
+  thumbnailUrl: string | null
+  views: number
+  likes: number
+  comments: number
+  shares: number
 }
 
 export interface SubscriberSnapshotDto {
