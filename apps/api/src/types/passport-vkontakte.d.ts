@@ -15,6 +15,7 @@ declare module 'passport-vkontakte' {
         callbackURL: string
         scope?: string[]
         profileFields?: string[]
+        state?: boolean
       },
       verify: (
         accessToken: string,

@@ -1,21 +1,26 @@
 import {
+  BadRequestException,
   Controller,
   Delete,
   Get,
   Inject,
   Param,
+  Query,
   Req,
   Res,
   UseGuards,
 } from '@nestjs/common'
-import { AuthGuard } from '@nestjs/passport'
 import type { Response } from 'express'
 import { OAuthProvider } from '@prisma/client'
 import type { OAuthConnectionDto } from '@spt/shared'
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard'
 import { CurrentUser, type RequestUser } from '../auth/decorators/current-user.decorator'
+import { OAuthProviderGuard } from './guards/oauth-provider.guard'
 import { OAuthService } from './oauth.service'
 import type { OAuthProfile } from './oauth.types'
+
+const VkAuthGuard = OAuthProviderGuard('vkontakte')
+const FacebookAuthGuard = OAuthProviderGuard('facebook')
 
 interface OAuthRequest {
   query: { state?: string }
@@ -43,6 +48,21 @@ export class OAuthController {
     await this.oauth.revokeConnection(user.id, id)
   }
 
+  @Get('authorize/:provider')
+  @UseGuards(JwtAuthGuard)
+  getAuthorizeUrl(
+    @CurrentUser() user: RequestUser,
+    @Param('provider') provider: string,
+    @Query('popup') popup?: string,
+  ): { url: string } {
+    const mapped = this.oauth.mapRouteProvider(provider)
+    if (!mapped) {
+      throw new BadRequestException('Unknown provider')
+    }
+    const usePopup = popup === '1' || popup === 'true'
+    return { url: this.oauth.buildAuthorizeUrl(mapped, user.id, usePopup) }
+  }
+
   @Get('start/:provider')
   @UseGuards(JwtAuthGuard)
   startOAuth(
@@ -55,49 +75,20 @@ export class OAuthController {
       res.status(400).json({ message: 'Unknown provider' })
       return
     }
-    const state = Buffer.from(
-      JSON.stringify({
-        userId: user.id,
-        returnUrl: process.env.WEB_URL ?? 'http://localhost:5173',
-      }),
-    ).toString('base64url')
-    const routes: Record<OAuthProvider, string> = {
-      [OAuthProvider.VK]: '/api/oauth/vk',
-      [OAuthProvider.GOOGLE]: '/api/oauth/google',
-      [OAuthProvider.FACEBOOK]: '/api/oauth/facebook',
-    }
-    const apiUrl = process.env.API_URL ?? 'http://localhost:3000'
-    res.redirect(`${apiUrl}${routes[mapped]}?state=${state}`)
+    res.redirect(this.oauth.buildAuthorizeUrl(mapped, user.id))
   }
 
   // ─── VK ───────────────────────────────────────────────────────────────────
 
   @Get('vk')
-  @UseGuards(AuthGuard('vkontakte'))
+  @UseGuards(VkAuthGuard)
   vkAuthorize(): void {
     // Passport redirects to VK
   }
 
   @Get('vk/callback')
-  @UseGuards(AuthGuard('vkontakte'))
+  @UseGuards(VkAuthGuard)
   async vkCallback(
-    @Req() req: OAuthRequest,
-    @Res() res: Response,
-  ): Promise<void> {
-    await this.handleCallback(req, res)
-  }
-
-  // ─── Google / YouTube ─────────────────────────────────────────────────────
-
-  @Get('google')
-  @UseGuards(AuthGuard('google'))
-  googleAuthorize(): void {
-    // Passport redirects to Google
-  }
-
-  @Get('google/callback')
-  @UseGuards(AuthGuard('google'))
-  async googleCallback(
     @Req() req: OAuthRequest,
     @Res() res: Response,
   ): Promise<void> {
@@ -107,13 +98,13 @@ export class OAuthController {
   // ─── Facebook / Instagram ─────────────────────────────────────────────────
 
   @Get('facebook')
-  @UseGuards(AuthGuard('facebook'))
+  @UseGuards(FacebookAuthGuard)
   facebookAuthorize(): void {
     // Passport redirects to Facebook
   }
 
   @Get('facebook/callback')
-  @UseGuards(AuthGuard('facebook'))
+  @UseGuards(FacebookAuthGuard)
   async facebookCallback(
     @Req() req: OAuthRequest,
     @Res() res: Response,
@@ -138,21 +129,32 @@ export class OAuthController {
     }
 
     try {
-      const { userId, returnUrl } = this.oauth.parseState(stateRaw)
+      const { userId, returnUrl, popup } = this.oauth.parseState(stateRaw)
       await this.oauth.upsertConnection(userId, profile)
       res.redirect(
-        this.oauth.buildCallbackRedirect(returnUrl, {
-          success: true,
-          provider: profile.provider as OAuthProvider,
-        }),
+        this.oauth.buildCallbackRedirect(
+          returnUrl,
+          {
+            success: true,
+            provider: profile.provider as OAuthProvider,
+          },
+          popup,
+        ),
       )
     } catch (error) {
       const message =
         error instanceof Error ? error.message : 'oauth_callback_failed'
+      let popup = false
+      try {
+        popup = this.oauth.parseState(stateRaw).popup ?? false
+      } catch {
+        // ignore malformed state
+      }
       res.redirect(
         this.oauth.buildCallbackRedirect(
           process.env.WEB_URL ?? 'http://localhost:5173',
           { success: false, error: message },
+          popup,
         ),
       )
     }

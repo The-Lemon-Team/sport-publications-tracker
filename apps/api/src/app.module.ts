@@ -7,6 +7,8 @@ import { CryptoModule } from './common/crypto/crypto.module'
 import { AuthModule } from './auth/auth.module'
 import { OAuthModule } from './oauth/oauth.module'
 import { TopicsModule } from './topics/topics.module'
+import { YouTubeModule } from './youtube/youtube.module'
+import { SubscribersModule } from './subscribers/subscribers.module'
 
 @Module({
   imports: [
@@ -17,6 +19,8 @@ import { TopicsModule } from './topics/topics.module'
     AuthModule,
     OAuthModule,
     TopicsModule,
+    YouTubeModule,
+    SubscribersModule,
   ],
 })
 export class AppModule {}

@@ -32,7 +32,6 @@ export type MetricSnapshotKind =
 /** OAuth providers used for read-only stats access */
 export const OAuthProvider = {
   VK: 'VK',
-  GOOGLE: 'GOOGLE',
   FACEBOOK: 'FACEBOOK',
 } as const
 export type OAuthProvider = (typeof OAuthProvider)[keyof typeof OAuthProvider]
@@ -85,7 +84,12 @@ export interface TopicDto {
   id: string
   name: string
   order: number
+  createdAt: string
   stages: StageDto[]
+}
+
+export interface CreateTopicRequest {
+  name: string
 }
 
 export interface OAuthConnectionDto {
@@ -137,6 +141,60 @@ export interface CreatePublicationRequest {
   status?: PublicationStatus
 }
 
+/** Public video stats from YouTube Data API (server API key, no user OAuth). */
+export interface YouTubeVideoMetricsDto {
+  videoId: string
+  title: string | null
+  channelTitle: string | null
+  channelId: string | null
+  publishedAt: string | null
+  thumbnailUrl: string | null
+  views: number
+  likes: number
+  comments: number
+}
+
+/** Public channel stats from YouTube Data API (subscriber count, no user OAuth). */
+export interface YouTubeChannelMetricsDto {
+  channelId: string
+  title: string | null
+  handle: string | null
+  thumbnailUrl: string | null
+  subscriberCount: number | null
+  hiddenSubscribers: boolean
+}
+
+export interface SubscriberSnapshotDto {
+  id: string
+  count: number
+  delta: number
+  capturedAt: string
+}
+
+export interface SubscriberSourceDto {
+  id: string
+  provider: Provider
+  externalId: string
+  handle: string | null
+  title: string | null
+  subscriberCount: number | null
+  lastChangedAt: string | null
+  lastCheckedAt: string | null
+  /** Delta from the most recent sync (0 if count unchanged). */
+  sessionDelta: number
+  /** Latest snapshot with a non-zero delta, for tooltip display. */
+  lastChange: SubscriberSnapshotDto | null
+}
+
+export interface SubscriberHistoryPageDto {
+  items: SubscriberSnapshotDto[]
+  nextCursor: string | null
+}
+
+export interface CreateSubscriberSourceRequest {
+  input: string
+}
+
 export const PROVIDER_LABELS: Record<Provider, string> = {
   [Provider.TELEGRAM]: 'Telegram',
   [Provider.VK]: 'VKontakte',
@@ -153,6 +211,5 @@ export const PROVIDER_LABELS: Record<Provider, string> = {
 
 export const OAUTH_PROVIDER_LABELS: Record<OAuthProvider, string> = {
   [OAuthProvider.VK]: 'VKontakte',
-  [OAuthProvider.GOOGLE]: 'YouTube',
   [OAuthProvider.FACEBOOK]: 'Instagram',
 }

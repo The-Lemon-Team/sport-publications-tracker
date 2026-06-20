@@ -1,0 +1,19 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    ports:
+      - '15432:5432'
+    environment:
+      POSTGRES_USER: spt
+      POSTGRES_PASSWORD: spt
+      POSTGRES_DB: spt_dev
+    volumes:
+      - spt_pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U spt -d spt_dev']
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  spt_pg_data:

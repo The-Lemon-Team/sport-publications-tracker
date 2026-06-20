@@ -19,6 +19,7 @@ export class FacebookOAuthStrategy extends PassportStrategy(
       clientSecret: config.getOrThrow<string>('FACEBOOK_APP_SECRET'),
       callbackURL: config.getOrThrow<string>('FACEBOOK_CALLBACK_URL'),
       profileFields: ['id', 'displayName', 'email'],
+      state: false,
       scope: [
         'email',
         'instagram_basic',
@@ -32,11 +33,9 @@ export class FacebookOAuthStrategy extends PassportStrategy(
   validate(
     accessToken: string,
     refreshToken: string,
-    _params: { expires_in?: number },
     profile: FacebookProfile,
-    done: (error: Error | null, user?: OAuthProfile) => void,
-  ): void {
-    done(null, {
+  ): OAuthProfile {
+    return {
       provider: OAuthProvider.FACEBOOK,
       externalAccountId: profile.id,
       channelName: profile.displayName,
@@ -51,8 +50,8 @@ export class FacebookOAuthStrategy extends PassportStrategy(
         'pages_read_engagement',
       ],
       metadata: {
-        emails: profile.emails,
+        emails: profile.emails ?? [],
       },
-    })
+    }
   }
 }

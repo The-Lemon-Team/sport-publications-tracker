@@ -14,6 +14,7 @@ export class VkOAuthStrategy extends PassportStrategy(VkStrategy, 'vkontakte') {
       callbackURL: config.getOrThrow<string>('VK_CALLBACK_URL'),
       scope: ['stats', 'offline'],
       profileFields: ['id', 'displayName', 'photo_100'],
+      state: false,
     })
   }
 
@@ -22,13 +23,12 @@ export class VkOAuthStrategy extends PassportStrategy(VkStrategy, 'vkontakte') {
     refreshToken: string,
     params: { expires_in?: number },
     profile: VkProfile,
-    done: (error: Error | null, user?: OAuthProfile) => void,
-  ): void {
+  ): OAuthProfile {
     const expiresAt = params.expires_in
       ? new Date(Date.now() + params.expires_in * 1000)
       : null
 
-    done(null, {
+    return {
       provider: OAuthProvider.VK,
       externalAccountId: profile.id,
       channelName: profile.displayName,
@@ -37,6 +37,6 @@ export class VkOAuthStrategy extends PassportStrategy(VkStrategy, 'vkontakte') {
       expiresAt,
       scopes: ['stats', 'offline'],
       metadata: { profile: profile._json },
-    })
+    }
   }
 }

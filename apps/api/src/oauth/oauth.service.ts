@@ -4,7 +4,7 @@ import { OAuthConnectionStatus, OAuthProvider, Prisma } from '@prisma/client'
 import type { OAuthConnectionDto } from '@spt/shared'
 import { TokenCryptoService } from '../common/crypto/token-crypto.service'
 import { PrismaService } from '../prisma/prisma.service'
-import type { OAuthProfile } from './oauth.types'
+import type { OAuthProfile, OAuthStatePayload } from './oauth.types'
 
 @Injectable()
 export class OAuthService {
@@ -14,15 +14,18 @@ export class OAuthService {
     @Inject(ConfigService) private readonly config: ConfigService,
   ) {}
 
-  buildAuthorizeUrl(provider: OAuthProvider, userId: string): string {
+  buildAuthorizeUrl(
+    provider: OAuthProvider,
+    userId: string,
+    popup = false,
+  ): string {
     const returnUrl = this.config.getOrThrow<string>('WEB_URL')
     const state = Buffer.from(
-      JSON.stringify({ userId, returnUrl }),
+      JSON.stringify({ userId, returnUrl, popup }),
     ).toString('base64url')
 
     const routes: Record<OAuthProvider, string> = {
       [OAuthProvider.VK]: '/api/oauth/vk',
-      [OAuthProvider.GOOGLE]: '/api/oauth/google',
       [OAuthProvider.FACEBOOK]: '/api/oauth/facebook',
     }
 
@@ -46,39 +49,45 @@ export class OAuthService {
       metadata: profile.metadata as Prisma.InputJsonValue,
     }
 
-    const connection = await this.prisma.oAuthConnection.upsert({
-      where: {
-        userId_provider_externalAccountId: {
+    const connection = await this.prisma.withFreshConnection((db) =>
+      db.oAuthConnection.upsert({
+        where: {
+          userId_provider_externalAccountId: {
+            userId,
+            provider: profile.provider,
+            externalAccountId: profile.externalAccountId,
+          },
+        },
+        create: {
           userId,
           provider: profile.provider,
           externalAccountId: profile.externalAccountId,
+          ...data,
         },
-      },
-      create: {
-        userId,
-        provider: profile.provider,
-        externalAccountId: profile.externalAccountId,
-        ...data,
-      },
-      update: data,
-    })
+        update: data,
+      }),
+    )
 
     return this.toDto(connection)
   }
 
   async listConnections(userId: string): Promise<OAuthConnectionDto[]> {
-    const rows = await this.prisma.oAuthConnection.findMany({
-      where: { userId },
-      orderBy: { provider: 'asc' },
-    })
+    const rows = await this.prisma.withFreshConnection((db) =>
+      db.oAuthConnection.findMany({
+        where: { userId },
+        orderBy: { provider: 'asc' },
+      }),
+    )
     return rows.map((row) => this.toDto(row))
   }
 
   async revokeConnection(userId: string, connectionId: string): Promise<void> {
-    await this.prisma.oAuthConnection.updateMany({
-      where: { id: connectionId, userId },
-      data: { status: OAuthConnectionStatus.REVOKED },
-    })
+    await this.prisma.withFreshConnection((db) =>
+      db.oAuthConnection.updateMany({
+        where: { id: connectionId, userId },
+        data: { status: OAuthConnectionStatus.REVOKED },
+      }),
+    )
   }
 
   getDecryptedAccessToken(connection: {
@@ -94,18 +103,20 @@ export class OAuthService {
     return this.crypto.decrypt(connection.refreshTokenEnc)
   }
 
-  parseState(state: string): { userId: string; returnUrl: string } {
+  parseState(state: string): OAuthStatePayload {
     const decoded = JSON.parse(
       Buffer.from(state, 'base64url').toString('utf8'),
-    ) as { userId: string; returnUrl: string }
+    ) as OAuthStatePayload
     return decoded
   }
 
   buildCallbackRedirect(
     returnUrl: string,
     params: { success: boolean; provider?: OAuthProvider; error?: string },
+    popup = false,
   ): string {
-    const url = new URL(`${returnUrl}/settings/integrations`)
+    const path = popup ? '/oauth/callback' : '/settings/integrations'
+    const url = new URL(`${returnUrl}${path}`)
     url.searchParams.set('oauth', params.success ? 'success' : 'error')
     if (params.provider) url.searchParams.set('provider', params.provider)
     if (params.error) url.searchParams.set('message', params.error)
@@ -116,10 +127,8 @@ export class OAuthService {
     const normalized = route.toLowerCase()
     const map: Record<string, OAuthProvider> = {
       vk: OAuthProvider.VK,
-      youtube: OAuthProvider.GOOGLE,
-      google: OAuthProvider.GOOGLE,
-      instagram: OAuthProvider.FACEBOOK,
       facebook: OAuthProvider.FACEBOOK,
+      instagram: OAuthProvider.FACEBOOK,
     }
     return map[normalized] ?? null
   }

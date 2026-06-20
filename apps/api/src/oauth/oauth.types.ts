@@ -14,4 +14,5 @@ export interface OAuthProfile {
 export interface OAuthStatePayload {
   userId: string
   returnUrl: string
+  popup?: boolean
 }

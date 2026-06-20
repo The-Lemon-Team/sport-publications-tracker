@@ -23,6 +23,33 @@ type TopicWithTree = Topic & {
 export class TopicsService {
   constructor(@Inject(PrismaService) private readonly prisma: PrismaService) {}
 
+  async createForUser(userId: string, name: string): Promise<TopicDto> {
+    const topic = await this.prisma.withFreshConnection(async (db) => {
+      const maxOrder = await db.topic.aggregate({
+        where: { userId },
+        _max: { order: true },
+      })
+      const order = (maxOrder._max.order ?? -1) + 1
+
+      return db.topic.create({
+        data: { userId, name: name.trim(), order },
+        include: {
+          stages: {
+            orderBy: { order: 'asc' },
+            include: {
+              publications: {
+                orderBy: { order: 'asc' },
+                include: { snapshots: true },
+              },
+            },
+          },
+        },
+      })
+    })
+
+    return this.toTopicDto(topic)
+  }
+
   async findAllForUser(userId: string): Promise<TopicDto[]> {
     const topics = await this.prisma.withFreshConnection((db) =>
       db.topic.findMany({
@@ -50,6 +77,7 @@ export class TopicsService {
       id: topic.id,
       name: topic.name,
       order: topic.order,
+      createdAt: topic.createdAt.toISOString(),
       stages: topic.stages.map((stage) => this.toStageDto(stage)),
     }
   }
