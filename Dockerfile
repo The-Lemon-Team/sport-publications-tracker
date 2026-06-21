@@ -24,6 +24,9 @@ COPY apps/api apps/api
 RUN pnpm --filter @spt/api prisma:generate
 RUN pnpm --filter @spt/api... build
 RUN pnpm --filter @spt/api --prod deploy /prod/api
+# deploy creates fresh node_modules — regenerate client into the production bundle
+COPY apps/api/prisma /prod/api/prisma
+RUN pnpm --filter @spt/api exec prisma generate --schema=/prod/api/prisma/schema.prisma
 
 FROM node:20-bookworm-slim AS production
 
