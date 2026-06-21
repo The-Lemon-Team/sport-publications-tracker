@@ -12,5 +12,7 @@ watchPatterns = [
 ]
 
 [deploy]
+# Production image has no pnpm — override any legacy Nixpacks/dashboard start command.
+startCommand = "node dist/apps/api/src/main.js"
 restartPolicyType = "ON_FAILURE"
 restartPolicyMaxRetries = 3
