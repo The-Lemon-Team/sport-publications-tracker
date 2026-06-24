@@ -53,9 +53,9 @@ function serializeContentFilter(
     return SubscriberHistoryContentFilter.ALL
   }
 
-  const parts = [...enabled].sort()
+  const parts: string[] = [...enabled].sort()
   if (includeAttached) {
-    parts.push('attached')
+    parts.push(SubscriberHistoryContentFilter.ATTACHED)
   }
   return parts.join(',')
 }
