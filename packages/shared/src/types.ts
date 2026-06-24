@@ -95,6 +95,7 @@ export interface MetricHistoryPageDto {
 }
 
 export interface UpdateManualMetricsRequest {
+  views: number
   likes: number
   comments: number
 }
@@ -107,6 +108,7 @@ export interface UpdatePublicationRequest {
   label?: string
   postUrl?: string | null
   metricTrackingMode?: MetricTrackingMode
+  subscriberSourceId?: string | null
 }
 
 export interface PublicationDto {
@@ -118,6 +120,8 @@ export interface PublicationDto {
   status: PublicationStatus
   publishedAt: string | null
   metricTrackingMode: MetricTrackingMode
+  subscriberSourceId: string | null
+  subscriberSourceHandle: string | null
   order: number
   snapshots: MetricSnapshotDto[]
   /** Significant negative deltas from the latest history row (manual cards). */
@@ -214,6 +218,7 @@ export interface CreatePublicationRequest {
   postUrl?: string
   status?: PublicationStatus
   metricTrackingMode?: MetricTrackingMode
+  subscriberSourceId?: string | null
   /** Initial stats fetched when adding (e.g. YouTube URL lookup). */
   initialMetrics?: Pick<Metrics, 'views' | 'likes' | 'comments'>
 }
@@ -279,7 +284,71 @@ export interface SubscriberSnapshotDto {
   id: string
   count: number
   delta: number
+  captureSource: SubscriberCaptureSource
   capturedAt: string
+}
+
+export const SubscriberTrackingMode = {
+  AUTOMATIC: 'AUTOMATIC',
+  MANUAL: 'MANUAL',
+} as const
+export type SubscriberTrackingMode =
+  (typeof SubscriberTrackingMode)[keyof typeof SubscriberTrackingMode]
+
+export const SubscriberCaptureSource = {
+  SYNC: 'SYNC',
+  MANUAL: 'MANUAL',
+} as const
+export type SubscriberCaptureSource =
+  (typeof SubscriberCaptureSource)[keyof typeof SubscriberCaptureSource]
+
+export const SubscriberHistoryEventType = {
+  SUBSCRIBER_CHANGE: 'SUBSCRIBER_CHANGE',
+  VIDEO_PUBLISHED: 'VIDEO_PUBLISHED',
+  CHANNEL_ATTACHED: 'CHANNEL_ATTACHED',
+} as const
+export type SubscriberHistoryEventType =
+  (typeof SubscriberHistoryEventType)[keyof typeof SubscriberHistoryEventType]
+
+export const SubscriberHistoryContentFilter = {
+  YOUTUBE: 'youtube',
+  TELEGRAM: 'telegram',
+  INSTAGRAM: 'instagram',
+  ALL: 'all',
+  ATTACHED: 'attached',
+  NONE: 'none',
+} as const
+export type SubscriberHistoryContentFilter =
+  (typeof SubscriberHistoryContentFilter)[keyof typeof SubscriberHistoryContentFilter]
+
+/** Provider ids used in subscriber history content toggles (matches PROVIDER_UI). */
+export const SUBSCRIBER_HISTORY_CONTENT_PROVIDER_IDS = [
+  'tg',
+  'vk',
+  'youtube',
+  'instagram',
+  'club',
+  'dzen',
+] as const
+export type SubscriberHistoryContentProviderId =
+  (typeof SUBSCRIBER_HISTORY_CONTENT_PROVIDER_IDS)[number]
+
+export interface SubscriberHistoryEventDto {
+  id: string
+  type: SubscriberHistoryEventType
+  capturedAt: string
+  count?: number
+  delta?: number
+  captureSource?: SubscriberCaptureSource
+  publicationId?: string
+  publicationLabel?: string
+  publicationUrl?: string | null
+  publicationStatus?: PublicationStatus
+  publicationProvider?: Provider
+  attachedChannelHandle?: string | null
+  /** Set when publication is linked to this channel and all content filters are active. */
+  attachedToChannel?: boolean
+  subscribersAtEvent?: number | null
 }
 
 export interface SubscriberSourceDto {
@@ -288,6 +357,8 @@ export interface SubscriberSourceDto {
   externalId: string
   handle: string | null
   title: string | null
+  profileUrl: string | null
+  trackingMode: SubscriberTrackingMode
   subscriberCount: number | null
   lastChangedAt: string | null
   lastCheckedAt: string | null
@@ -298,12 +369,21 @@ export interface SubscriberSourceDto {
 }
 
 export interface SubscriberHistoryPageDto {
-  items: SubscriberSnapshotDto[]
+  items: SubscriberHistoryEventDto[]
   nextCursor: string | null
 }
 
 export interface CreateSubscriberSourceRequest {
   input: string
+  trackingMode?: SubscriberTrackingMode
+  /** Starting subscriber count for manual / offline sources. */
+  initialSubscriberCount?: number | null
+  /** Web provider id (tg, vk, youtube, instagram) when input is ambiguous. */
+  providerId?: string
+}
+
+export interface UpdateManualSubscriberCountRequest {
+  count: number
 }
 
 export const PROVIDER_LABELS: Record<Provider, string> = {
