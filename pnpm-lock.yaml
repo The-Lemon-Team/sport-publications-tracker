@@ -61,9 +61,6 @@ importers:
       passport-local:
         specifier: ^1.0.0
         version: 1.0.0
-      passport-vkontakte:
-        specifier: ^0.5.0
-        version: 0.5.0
       prisma:
         specifier: ^6.3.0
         version: 6.19.3(typescript@5.9.3)
@@ -2264,10 +2261,6 @@ packages:
     resolution: {integrity: sha512-CB97UUvDKJde2V0KDWWB3lyf6PC3FaZP7YxZ2G8OAtn9p4HI9j9JLP9qjOGZFvyl8uwNT8qM+hGnz/n16NI7oA==}
     engines: {node: '>= 0.4.0'}
 
-  passport-vkontakte@0.5.0:
-    resolution: {integrity: sha512-9VgT2sJdlbpl6GHn12fXLE2rw1nWh5v6xWp/D6nB+/EB4yA+LtiKWttCEDc5IpSDTdRzZlS9pahkNQuu43N4oQ==}
-    engines: {node: '>= 0.4.0'}
-
   passport@0.7.0:
     resolution: {integrity: sha512-cPLl+qZpSc+ireUvt+IzqbED1cHHkDoVYMo30jbJIdOOjQ1MQYZBPiNvmi8UM6lJuOpTPXJGZQk0DtC4y61MYQ==}
     engines: {node: '>= 0.4.0'}
@@ -2316,10 +2309,6 @@ packages:
 
   pkg-types@2.3.1:
     resolution: {integrity: sha512-y+ichcgc2LrADuhLNAx8DFjVfgz91pRxfZdI3UDhxHvcVEZsenLO+7XaU5vOp0u/7V/wZ+plyuQxtrDlZJ+yeg==}
-
-  pkginfo@0.4.1:
-    resolution: {integrity: sha512-8xCNE/aT/EXKenuMDZ+xTVwkT8gsoHN2z/Q29l80u0ppGEXVvsKRzNMbtKhg8LS8k1tJLAHHylf6p4VFmP6XUQ==}
-    engines: {node: '>= 0.4.0'}
 
   pluralize@8.0.0:
     resolution: {integrity: sha512-Nc3IT5yHzflTfbjgqWcCPpo7DaKy4FnpB0l/zCAW0Tc7jxAiuqSxHasntB3D7887LSrA93kDJ9IXovxJYxyLCA==}
@@ -4942,11 +4931,6 @@ snapshots:
 
   passport-strategy@1.0.0: {}
 
-  passport-vkontakte@0.5.0:
-    dependencies:
-      passport-oauth2: 1.8.0
-      pkginfo: 0.4.1
-
   passport@0.7.0:
     dependencies:
       passport-strategy: 1.0.0
@@ -4985,8 +4969,6 @@ snapshots:
       confbox: 0.2.4
       exsolve: 1.0.8
       pathe: 2.0.3
-
-  pkginfo@0.4.1: {}
 
   pluralize@8.0.0: {}
 
