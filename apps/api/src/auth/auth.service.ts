@@ -57,7 +57,7 @@ export class AuthService {
       }),
     )
 
-    if (!user) {
+    if (!user || !user.passwordHash) {
       throw new UnauthorizedException('Invalid credentials')
     }
 
@@ -68,6 +68,23 @@ export class AuthService {
 
     return this.issueTokens(user.id, user.email, user.name)
   }
+
+  // ─── VK site login (disabled) ─────────────────────────────────────────────
+  // async findOrCreateUserFromVk(profile: {
+  //   externalAccountId: string
+  //   channelName: string | null
+  //   metadata: Record<string, unknown>
+  // }): Promise<{ id: string; email: string; name: string | null }> {
+  //   ...
+  // }
+  //
+  // issueTokensForUser(user: {
+  //   id: string
+  //   email: string
+  //   name: string | null
+  // }): Promise<AuthTokensDto> {
+  //   return this.issueTokens(user.id, user.email, user.name)
+  // }
 
   async refresh(refreshToken: string): Promise<AuthTokensDto> {
     const tokenHash = this.hashToken(refreshToken)
@@ -130,12 +147,16 @@ export class AuthService {
     }
 
     if (hasProfileChange || hasPasswordChange) {
-      if (!dto.currentPassword) {
-        throw new BadRequestException('Current password is required')
-      }
-      const valid = await bcrypt.compare(dto.currentPassword, user.passwordHash)
-      if (!valid) {
-        throw new UnauthorizedException('Invalid current password')
+      if (user.passwordHash) {
+        if (!dto.currentPassword) {
+          throw new BadRequestException('Current password is required')
+        }
+        const valid = await bcrypt.compare(dto.currentPassword, user.passwordHash)
+        if (!valid) {
+          throw new UnauthorizedException('Invalid current password')
+        }
+      } else if (hasPasswordChange && !dto.newPassword) {
+        throw new BadRequestException('New password is required')
       }
     }
 

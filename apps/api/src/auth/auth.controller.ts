@@ -13,10 +13,16 @@ import { AuthService } from './auth.service'
 import { LoginDto, RefreshDto, RegisterDto, UpdateProfileDto } from './dto/auth.dto'
 import { JwtAuthGuard } from './guards/jwt-auth.guard'
 import { CurrentUser, type RequestUser } from './decorators/current-user.decorator'
+// import type { Response } from 'express'
+// import { OAuthService } from '../oauth/oauth.service'
+// import { VK_SITE_LOGIN_ENABLED } from './feature-flags'
 
 @Controller('auth')
 export class AuthController {
-  constructor(@Inject(AuthService) private readonly auth: AuthService) {}
+  constructor(
+    @Inject(AuthService) private readonly auth: AuthService,
+    // @Inject(OAuthService) private readonly oauth: OAuthService,
+  ) {}
 
   @Get('me')
   @UseGuards(JwtAuthGuard)
@@ -55,4 +61,14 @@ export class AuthController {
   async logout(@Body() dto: RefreshDto): Promise<void> {
     await this.auth.logout(dto.refreshToken)
   }
+
+  // ─── VK site login (disabled) ───────────────────────────────────────────────
+  // @Get('vk')
+  // vkLogin(@Res() res: Response): void {
+  //   if (!VK_SITE_LOGIN_ENABLED) {
+  //     res.status(404).json({ message: 'VK login is disabled' })
+  //     return
+  //   }
+  //   res.redirect(this.oauth.buildVkLoginUrl())
+  // }
 }
