@@ -70,11 +70,12 @@ export class AuthService {
   }
 
   // ─── VK site login (disabled) ─────────────────────────────────────────────
-  // async findOrCreateUserFromVk(profile: {
-  //   externalAccountId: string
-  //   channelName: string | null
-  //   metadata: Record<string, unknown>
-  // }): Promise<{ id: string; email: string; name: string | null }> {
+  // async findOrCreateUserFromVk(
+  //   profile: Pick<
+  //     OAuthProfile,
+  //     'provider' | 'externalAccountId' | 'channelName' | 'metadata'
+  //   >,
+  // ): Promise<{ id: string; email: string; name: string | null }> {
   //   ...
   // }
   //

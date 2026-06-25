@@ -8,7 +8,7 @@ import {
   AuthLayout,
   useRedirectIfAuthenticated,
 } from '@/features/auth/components/AuthLayout'
-import { VkLoginButton } from '@/features/auth/components/VkLoginButton'
+// import { VkLoginButton } from '@/features/auth/components/VkLoginButton'
 
 export function RegisterPage() {
   useRedirectIfAuthenticated()
@@ -50,6 +50,7 @@ export function RegisterPage() {
         error={error}
         loading={isLoading}
       />
+      {/* VK site login — disabled
       <div className="mt-4 flex flex-col gap-3">
         <div className="relative">
           <div className="absolute inset-0 flex items-center">
@@ -61,6 +62,7 @@ export function RegisterPage() {
         </div>
         <VkLoginButton />
       </div>
+      */}
     </AuthLayout>
   )
 }

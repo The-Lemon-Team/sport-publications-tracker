@@ -14,6 +14,7 @@ import {
 import type { Response } from 'express'
 import { OAuthProvider } from '@prisma/client'
 import type { OAuthConnectionDto } from '@spt/shared'
+// import { AuthService } from '../auth/auth.service'
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard'
 import { CurrentUser, type RequestUser } from '../auth/decorators/current-user.decorator'
 import { InstagramService } from '../instagram/instagram.service'
@@ -103,109 +104,39 @@ export class OAuthController {
     await this.handleCallback(req, res)
   }
 
-  // ─── VK (site login + integration) ────────────────────────────────────────
-
-  @Get('vk')
-  vkAuthorize(@Query('state') state: string | undefined, @Res() res: Response): void {
-    if (!state) {
-      res.status(400).json({ message: 'missing_state' })
-      return
-    }
-    if (!process.env.VK_APP_ID || !process.env.VK_APP_SECRET) {
-      res.status(503).json({ message: 'VK OAuth is not configured' })
-      return
-    }
-    res.redirect(this.vkOAuth.buildAuthorizeUrl(state))
-  }
-
-  @Get('vk/callback')
-  async vkCallback(
-    @Query('code') code: string | undefined,
-    @Query('state') stateRaw: string | undefined,
-    @Query('error') error: string | undefined,
-    @Query('error_description') errorDescription: string | undefined,
-    @Res() res: Response,
-  ): Promise<void> {
-    if (error || !code || !stateRaw) {
-      const fallback = this.oauth.buildCallbackRedirect(
-        process.env.WEB_URL ?? 'http://localhost:5173',
-        {
-          success: false,
-          error: errorDescription ?? error ?? 'missing_code_or_state',
-        },
-        false,
-        'login',
-      )
-      res.redirect(fallback)
-      return
-    }
-
-    try {
-      const profile = await this.vkOAuth.exchangeCodeForProfile(code)
-      await this.handleVkProfile(stateRaw, profile, res)
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'oauth_callback_failed'
-      let returnUrl = process.env.WEB_URL ?? 'http://localhost:5173'
-      let mode: 'login' | 'connect' = 'login'
-      try {
-        const parsed = this.oauth.parseState(stateRaw)
-        returnUrl = parsed.returnUrl
-        mode = parsed.mode
-      } catch {
-        // ignore malformed state
-      }
-
-      if (mode === 'login') {
-        const url = new URL(`${returnUrl}/auth/vk/callback`)
-        url.searchParams.set('oauth', 'error')
-        url.searchParams.set('message', message)
-        res.redirect(url.toString())
-        return
-      }
-
-      res.redirect(
-        this.oauth.buildCallbackRedirect(
-          returnUrl,
-          { success: false, error: message },
-          false,
-          mode,
-        ),
-      )
-    }
-  }
-
-  private async handleVkProfile(
-    stateRaw: string,
-    profile: OAuthProfile,
-    res: Response,
-  ): Promise<void> {
-    const { userId, returnUrl, popup, mode } = this.oauth.parseState(stateRaw)
-
-    if (mode === 'login') {
-      const user = await this.auth.findOrCreateUserFromVk(profile)
-      await this.oauth.upsertConnection(user.id, profile)
-      const tokens = await this.auth.issueTokensForUser(user)
-      res.redirect(this.oauth.buildLoginCallbackRedirect(returnUrl, tokens))
-      return
-    }
-
-    if (!userId) {
-      throw new Error('missing_user_id')
-    }
-
-    await this.oauth.upsertConnection(userId, profile)
-    res.redirect(
-      this.oauth.buildCallbackRedirect(
-        returnUrl,
-        {
-          success: true,
-          provider: profile.provider as OAuthProvider,
-        },
-        popup,
-        mode,
-      ),
-    )
-  }
+  // ─── VK (site login + integration) — disabled ───────────────────────────────
+  //
+  // @Get('vk')
+  // vkAuthorize(@Query('state') state: string | undefined, @Res() res: Response): void {
+  //   if (!state) {
+  //     res.status(400).json({ message: 'missing_state' })
+  //     return
+  //   }
+  //   if (!process.env.VK_APP_ID || !process.env.VK_APP_SECRET) {
+  //     res.status(503).json({ message: 'VK OAuth is not configured' })
+  //     return
+  //   }
+  //   res.redirect(this.vkOAuth.buildAuthorizeUrl(state))
+  // }
+  //
+  // @Get('vk/callback')
+  // async vkCallback(
+  //   @Query('code') code: string | undefined,
+  //   @Query('state') stateRaw: string | undefined,
+  //   @Query('error') error: string | undefined,
+  //   @Query('error_description') errorDescription: string | undefined,
+  //   @Res() res: Response,
+  // ): Promise<void> {
+  //   ...
+  // }
+  //
+  // private async handleVkProfile(
+  //   stateRaw: string,
+  //   profile: OAuthProfile,
+  //   res: Response,
+  // ): Promise<void> {
+  //   ...
+  // }
 
   private async handleCallback(
     req: OAuthRequest,
@@ -228,10 +159,14 @@ export class OAuthController {
       const profile = await this.enrichProfile(profileRaw)
 
       if (mode === 'login') {
-        const user = await this.auth.findOrCreateUserFromVk(profile)
-        await this.oauth.upsertConnection(user.id, profile)
-        const tokens = await this.auth.issueTokensForUser(user)
-        res.redirect(this.oauth.buildLoginCallbackRedirect(returnUrl, tokens))
+        res.redirect(
+          this.oauth.buildCallbackRedirect(
+            returnUrl,
+            { success: false, error: 'vk_login_disabled' },
+            popup,
+            mode,
+          ),
+        )
         return
       }
 
