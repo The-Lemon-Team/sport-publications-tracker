@@ -1,9 +1,10 @@
 import { useTranslation } from 'react-i18next'
 import { useEffect, useMemo, useState } from 'react'
-import type { OAuthConnectionDto, SubscriberSourceDto } from '@spt/shared'
+import type { OAuthConnectionDto, SubscriberSourceDto, TelegramBotConnectionDto } from '@spt/shared'
 import { Outlet, useLocation } from 'react-router-dom'
 import {
   useGetOAuthConnectionsQuery,
+  useGetTelegramBotConnectionQuery,
   useGetSubscriberSourcesQuery,
   useSyncSubscriberSourcesMutation,
   useCreateSubscriberSourceMutation,
@@ -33,7 +34,7 @@ import {
 } from '@/lib/provider-connections'
 import { providerIdFromEnum } from '@/lib/providers'
 
-const SUBSCRIBER_SYNC_INTERVAL_MS = 60_000
+const SUBSCRIBER_SYNC_INTERVAL_MS = 20_000
 
 function mapDbSourceToLive(source: SubscriberSourceDto): LiveSubscriberSource {
   const sourceType = getSubscribableSourceType(
@@ -52,7 +53,6 @@ function mapDbSourceToLive(source: SubscriberSourceDto): LiveSubscriberSource {
     channelId: source.externalId,
     profileUrl: source.profileUrl,
     trackingMode: source.trackingMode,
-    linkOnly: sourceType?.kind === 'link-only',
     sessionDelta: source.sessionDelta,
     lastChangedAt: source.lastChangedAt,
     lastChange: source.lastChange,
@@ -87,6 +87,8 @@ export function DashboardLayout() {
   const activeNav = navFromPath(location.pathname)
   const { data: oauthConnections, refetch: refetchOAuth } =
     useGetOAuthConnectionsQuery()
+  const { data: telegramBotConnection, refetch: refetchTelegramBot } =
+    useGetTelegramBotConnectionQuery()
   const { data: dbSubscriberSources, refetch: refetchSubscriberSources } =
     useGetSubscriberSourcesQuery()
   const [syncSubscriberSources] = useSyncSubscriberSourcesMutation()
@@ -218,6 +220,8 @@ export function DashboardLayout() {
         activeNav={activeNav}
         subscriberSources={subscriberSources}
         oauthConnections={oauthConnections ?? []}
+        telegramBotConnection={telegramBotConnection ?? null}
+        refetchTelegramBot={refetchTelegramBot}
         oauthError={oauthError}
         connectingId={oauthConnectingId}
         onConnectOAuth={connectProvider}
@@ -231,6 +235,8 @@ function DashboardLayoutInner({
   activeNav,
   subscriberSources,
   oauthConnections,
+  telegramBotConnection,
+  refetchTelegramBot,
   oauthError,
   connectingId,
   onConnectOAuth,
@@ -239,6 +245,8 @@ function DashboardLayoutInner({
   activeNav: ReturnType<typeof navFromPath>
   subscriberSources: LiveSubscriberSource[]
   oauthConnections: OAuthConnectionDto[]
+  telegramBotConnection: TelegramBotConnectionDto | null
+  refetchTelegramBot: () => void
   oauthError: string | null
   connectingId: string | null
   onConnectOAuth: (id: string) => void
@@ -261,6 +269,8 @@ function DashboardLayoutInner({
       subscriberSources,
       weeklyPublications,
       oauthConnections: oauthConnections,
+      telegramBotConnection,
+      refetchTelegramBot,
       connectingId,
       oauthError,
       onConnectOAuth,
@@ -270,6 +280,8 @@ function DashboardLayoutInner({
       subscriberSources,
       weeklyPublications,
       oauthConnections,
+      telegramBotConnection,
+      refetchTelegramBot,
       connectingId,
       oauthError,
       onConnectOAuth,

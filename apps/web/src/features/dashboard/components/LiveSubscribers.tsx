@@ -7,6 +7,7 @@ import {
 import {
   SUBSCRIBABLE_SOURCE_TYPES,
   type LiveSubscriberSource,
+  getLiveSubscriberDisplayDelta,
   getSubscribableSourceType,
   providerOf,
 } from '@/lib/provider-connections'
@@ -80,29 +81,29 @@ function AddSubscriberButton({
         type="button"
         variant="outline"
         size="sm"
-        className="gap-2 pl-2"
+        className="h-7 gap-1 rounded-md px-2 pl-1.5 text-[11px] [&_svg]:size-3"
         disabled={Boolean(connectingId)}
         onClick={() => setOpen((prev) => !prev)}
       >
         <span className="flex items-center">
-          <span className="flex -space-x-1.5">
+          <span className="flex -space-x-1">
             {SUBSCRIBABLE_SOURCE_TYPES.map((source) => (
               <ProviderBadge
                 key={source.id}
                 providerId={source.id}
-                size="sm"
+                size="xs"
                 className="ring-2 ring-white dark:ring-card"
               />
             ))}
           </span>
-          <span className="ml-1 flex size-5 items-center justify-center rounded-full bg-primary text-primary-foreground">
-            <Plus className="size-3" />
+          <span className="ml-0.5 flex size-4 items-center justify-center rounded-full bg-primary text-primary-foreground">
+            <Plus className="size-2.5" />
           </span>
         </span>
         <span>Добавить</span>
         <ChevronDown
           className={cn(
-            'size-3.5 opacity-60 transition-transform',
+            'opacity-60 transition-transform',
             open && 'rotate-180',
           )}
         />
@@ -393,10 +394,10 @@ export function LiveSubscribers({
             {sources.map((source) => {
               const isTracked = Boolean(source.sourceId)
               const count = isTracked
-                ? (source.subscriberCount ?? (source.linkOnly ? null : source.baseSubscribers))
+                ? (source.subscriberCount ?? source.baseSubscribers)
                 : (live[source.key]?.count ?? source.baseSubscribers)
               const delta = isTracked
-                ? (source.sessionDelta ?? 0)
+                ? getLiveSubscriberDisplayDelta(source)
                 : (live[source.key]?.delta ?? 0)
 
               return (

@@ -14,6 +14,10 @@ import type {
   LoginRequest,
   MetricHistoryPageDto,
   OAuthConnectionDto,
+  ConnectTelegramBotRequest,
+  TelegramBotConnectionDto,
+  VerifyTelegramChannelRequest,
+  VerifyTelegramChannelResult,
   PublicationDto,
   RegisterRequest,
   ReorderPublicationsRequest,
@@ -113,7 +117,7 @@ const baseQueryWithReauth: BaseQueryFn<
 export const baseApi = createApi({
   reducerPath: 'api',
   baseQuery: baseQueryWithReauth,
-  tagTypes: ['Topics', 'OAuthConnections', 'Me', 'SubscriberSources', 'Publications'],
+  tagTypes: ['Topics', 'OAuthConnections', 'TelegramBot', 'Me', 'SubscriberSources', 'Publications'],
   endpoints: (builder) => ({
     register: builder.mutation<AuthTokensDto, RegisterRequest>({
       query: (body) => ({
@@ -208,6 +212,38 @@ export const baseApi = createApi({
     getOAuthConnections: builder.query<OAuthConnectionDto[], void>({
       query: () => '/oauth/connections',
       providesTags: ['OAuthConnections'],
+    }),
+    getTelegramBotConnection: builder.query<TelegramBotConnectionDto | null, void>({
+      query: () => '/telegram/bot',
+      providesTags: ['TelegramBot'],
+    }),
+    connectTelegramBot: builder.mutation<
+      TelegramBotConnectionDto,
+      ConnectTelegramBotRequest
+    >({
+      query: (body) => ({
+        url: '/telegram/bot',
+        method: 'POST',
+        body,
+      }),
+      invalidatesTags: ['TelegramBot'],
+    }),
+    revokeTelegramBot: builder.mutation<void, void>({
+      query: () => ({
+        url: '/telegram/bot',
+        method: 'DELETE',
+      }),
+      invalidatesTags: ['TelegramBot'],
+    }),
+    verifyTelegramChannel: builder.mutation<
+      VerifyTelegramChannelResult,
+      VerifyTelegramChannelRequest
+    >({
+      query: (body) => ({
+        url: '/telegram/verify-channel',
+        method: 'POST',
+        body,
+      }),
     }),
     getYouTubeMetrics: builder.query<YouTubeVideoMetricsDto, string>({
       query: (url) => `/youtube/metrics?url=${encodeURIComponent(url)}`,
@@ -362,6 +398,10 @@ export const {
   useReorderPublicationsMutation,
   useCreatePublicationMutation,
   useGetOAuthConnectionsQuery,
+  useGetTelegramBotConnectionQuery,
+  useConnectTelegramBotMutation,
+  useRevokeTelegramBotMutation,
+  useVerifyTelegramChannelMutation,
   useLazyGetYouTubeMetricsQuery,
   useLazyGetYouTubeChannelMetricsQuery,
   useLazyGetYouTubeChannelsMetricsQuery,

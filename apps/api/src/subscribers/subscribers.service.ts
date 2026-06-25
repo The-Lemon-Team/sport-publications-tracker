@@ -26,6 +26,7 @@ import {
   SubscriberTrackingMode as SharedTrackingMode,
 } from '@spt/shared'
 import { PrismaService } from '../prisma/prisma.service'
+import { TelegramBotService, TelegramService } from '../telegram/telegram.service'
 import { VkService } from '../vk/vk.service'
 import { parseVkGroupInput, vkGroupPollInput } from '../vk/vk-group.util'
 import { parseYouTubeChannelInput } from '../youtube/youtube-channel.util'
@@ -34,6 +35,8 @@ import { parseTelegramChannelInput } from './telegram-channel.util'
 import { parseInstagramInput } from './instagram-account.util'
 
 const HISTORY_PAGE_SIZE = 20
+/** Unchanged automatic polls before writing a delta=0 CHECK snapshot. */
+const UNCHANGED_CHECKS_FOR_CHECKPOINT = 5
 
 const WEB_PROVIDER_IDS: Record<string, Provider> = {
   tg: Provider.TELEGRAM,
@@ -66,6 +69,8 @@ export class SubscribersService {
     @Inject(PrismaService) private readonly prisma: PrismaService,
     @Inject(YouTubeService) private readonly youtube: YouTubeService,
     @Inject(VkService) private readonly vk: VkService,
+    @Inject(TelegramBotService) private readonly telegramBots: TelegramBotService,
+    @Inject(TelegramService) private readonly telegram: TelegramService,
   ) {}
 
   async findAllForUser(userId: string): Promise<SubscriberSourceDto[]> {
@@ -104,10 +109,20 @@ export class SubscribersService {
     const hinted = this.resolveProviderFromRequest(request)
 
     if (hinted === Provider.INSTAGRAM) {
-      return this.createInstagramSource(userId, trimmed, request)
+      return this.createInstagramSource(
+        userId,
+        trimmed,
+        request.trackingMode,
+        request,
+      )
     }
     if (hinted === Provider.TELEGRAM) {
-      return this.createTelegramSource(userId, trimmed, request)
+      return this.createTelegramSource(
+        userId,
+        trimmed,
+        request.trackingMode,
+        request,
+      )
     }
     if (hinted === Provider.VK) {
       return this.createVkSource(userId, trimmed, request.trackingMode, request)
@@ -122,7 +137,12 @@ export class SubscribersService {
     }
 
     if (parseTelegramChannelInput(trimmed)) {
-      return this.createTelegramSource(userId, trimmed, request)
+      return this.createTelegramSource(
+        userId,
+        trimmed,
+        request.trackingMode,
+        request,
+      )
     }
     if (parseVkGroupInput(trimmed)) {
       return this.createVkSource(userId, trimmed, request.trackingMode, request)
@@ -136,7 +156,12 @@ export class SubscribersService {
       )
     }
     if (parseInstagramInput(trimmed)) {
-      return this.createInstagramSource(userId, trimmed, request)
+      return this.createInstagramSource(
+        userId,
+        trimmed,
+        request.trackingMode,
+        request,
+      )
     }
     throw new BadRequestException('Invalid channel or group URL')
   }
@@ -201,6 +226,72 @@ export class SubscribersService {
   async createTelegramSource(
     userId: string,
     input: string,
+    requestedMode?: SharedTrackingMode,
+    request: CreateSubscriberSourceRequest = { input },
+  ): Promise<SubscriberSourceDto> {
+    const botConnection = await this.telegramBots.getConnection(userId)
+    const trackingMode = resolveSubscriberTrackingMode(
+      Provider.TELEGRAM,
+      [],
+      requestedMode ?? SharedTrackingMode.MANUAL,
+      botConnection,
+    )
+
+    if (trackingMode === SubscriberTrackingMode.MANUAL) {
+      return this.createTelegramSourceManual(userId, input, request)
+    }
+
+    const { connection, token } = await this.telegramBots.requireActiveBot(userId)
+    const metrics = await this.telegram.verifyChannelAccess(token, input)
+    const count = metrics.subscriberCount
+    const now = new Date()
+
+    const source = await this.prisma.subscriberSource.upsert({
+      where: {
+        userId_provider_externalId: {
+          userId,
+          provider: Provider.TELEGRAM,
+          externalId: metrics.externalId,
+        },
+      },
+      create: {
+        userId,
+        provider: Provider.TELEGRAM,
+        externalId: metrics.externalId,
+        handle: metrics.handle,
+        title: metrics.title ?? metrics.handle,
+        pollInput: metrics.pollInput,
+        profileUrl: metrics.profileUrl,
+        trackingMode: SubscriberTrackingMode.AUTOMATIC,
+        telegramBotConnectionId: connection.id,
+        subscriberCount: count,
+        lastChangedAt: now,
+        lastCheckedAt: now,
+        snapshots: {
+          create: {
+            count,
+            delta: 0,
+            captureSource: SubscriberCaptureSource.SYNC,
+          },
+        },
+      },
+      update: {
+        handle: metrics.handle,
+        title: metrics.title ?? metrics.handle,
+        pollInput: metrics.pollInput,
+        profileUrl: metrics.profileUrl,
+        telegramBotConnectionId: connection.id,
+        trackingMode: SubscriberTrackingMode.AUTOMATIC,
+        lastCheckedAt: now,
+      },
+    })
+
+    return this.toLiveDto(source, 0)
+  }
+
+  async createTelegramSourceManual(
+    userId: string,
+    input: string,
     request: CreateSubscriberSourceRequest = { input },
   ): Promise<SubscriberSourceDto> {
     const parsed = parseTelegramChannelInput(input)
@@ -246,6 +337,27 @@ export class SubscribersService {
   }
 
   async createInstagramSource(
+    userId: string,
+    input: string,
+    requestedMode?: SharedTrackingMode,
+    request: CreateSubscriberSourceRequest = { input },
+  ): Promise<SubscriberSourceDto> {
+    const trackingMode = resolveSubscriberTrackingMode(
+      Provider.INSTAGRAM,
+      [],
+      requestedMode ?? SharedTrackingMode.MANUAL,
+    )
+
+    if (trackingMode === SubscriberTrackingMode.MANUAL) {
+      return this.createInstagramSourceManual(userId, input, request)
+    }
+
+    throw new BadRequestException(
+      'Automatic Instagram subscriber tracking is not supported yet',
+    )
+  }
+
+  async createInstagramSourceManual(
     userId: string,
     input: string,
     request: CreateSubscriberSourceRequest = { input },
@@ -518,6 +630,7 @@ export class SubscribersService {
         trackingMode: SubscriberTrackingMode.MANUAL,
         lastChangedAt: now,
         lastCheckedAt: now,
+        unchangedSyncStreak: 0,
       },
     })
 
@@ -529,7 +642,7 @@ export class SubscribersService {
       where: {
         userId,
         trackingMode: SubscriberTrackingMode.AUTOMATIC,
-        provider: { in: [Provider.YOUTUBE, Provider.VK] },
+        provider: { in: [Provider.YOUTUBE, Provider.VK, Provider.TELEGRAM] },
       },
     })
 
@@ -538,6 +651,10 @@ export class SubscribersService {
     for (const source of sources) {
       if (source.provider === Provider.VK) {
         results.push(await this.syncVkSource(source))
+        continue
+      }
+      if (source.provider === Provider.TELEGRAM) {
+        results.push(await this.syncTelegramSource(source))
         continue
       }
       results.push(await this.syncYouTubeSource(source))
@@ -555,6 +672,7 @@ export class SubscribersService {
       title: string | null
       pollInput: string
       subscriberCount: number | null
+      unchangedSyncStreak: number
       lastChangedAt: Date | null
       lastCheckedAt: Date | null
     },
@@ -565,45 +683,77 @@ export class SubscribersService {
     }
 
     const newCount = metrics.subscriberCount ?? source.subscriberCount ?? 0
-    const oldCount = source.subscriberCount
     const now = new Date()
-    let sessionDelta = 0
-
-    if (oldCount === null) {
-      await this.prisma.subscriberSnapshot.create({
-        data: {
-          sourceId: source.id,
-          count: newCount,
-          delta: 0,
-          captureSource: SubscriberCaptureSource.SYNC,
-        },
-      })
-    } else if (newCount !== oldCount) {
-      sessionDelta = newCount - oldCount
-      await this.prisma.subscriberSnapshot.create({
-        data: {
-          sourceId: source.id,
-          count: newCount,
-          delta: sessionDelta,
-          captureSource: SubscriberCaptureSource.SYNC,
-        },
-      })
-    }
+    const { sessionDelta, countChanged, nextStreak } =
+      await this.recordAutomaticSync(source, newCount)
 
     const updated = await this.prisma.subscriberSource.update({
       where: { id: source.id },
       data: {
         subscriberCount: newCount,
+        unchangedSyncStreak: nextStreak,
         handle: metrics.handle ?? source.handle,
         title: metrics.title ?? source.title,
         lastCheckedAt: now,
-        ...(oldCount === null || newCount !== oldCount
+        ...(source.subscriberCount === null || countChanged
           ? { lastChangedAt: now }
           : {}),
       },
     })
 
     return this.toLiveDto(updated, sessionDelta)
+  }
+
+  private async syncTelegramSource(
+    source: {
+      id: string
+      provider: Provider
+      externalId: string
+      handle: string | null
+      title: string | null
+      pollInput: string
+      subscriberCount: number | null
+      unchangedSyncStreak: number
+      lastChangedAt: Date | null
+      lastCheckedAt: Date | null
+      telegramBotConnectionId: string | null
+    },
+  ): Promise<SubscriberSourceDto> {
+    const token = await this.telegramBots.getDecryptedTokenForSource(
+      source.telegramBotConnectionId,
+    )
+    if (!token) {
+      return this.toLiveDto(source, 0)
+    }
+
+    try {
+      const newCount = await this.telegram.getChannelMemberCount(
+        token,
+        source.pollInput,
+      )
+      const now = new Date()
+      const { sessionDelta, countChanged, nextStreak } =
+        await this.recordAutomaticSync(source, newCount)
+
+      const updated = await this.prisma.subscriberSource.update({
+        where: { id: source.id },
+        data: {
+          subscriberCount: newCount,
+          unchangedSyncStreak: nextStreak,
+          lastCheckedAt: now,
+          ...(source.subscriberCount === null || countChanged
+            ? { lastChangedAt: now }
+            : {}),
+        },
+      })
+
+      return this.toLiveDto(updated, sessionDelta)
+    } catch {
+      if (source.telegramBotConnectionId) {
+        await this.telegramBots.markInvalid(source.telegramBotConnectionId)
+      }
+      return this.toLiveDto(source, 0)
+    }
   }
 
   private async syncVkSource(
@@ -615,45 +765,26 @@ export class SubscribersService {
       title: string | null
       pollInput: string
       subscriberCount: number | null
+      unchangedSyncStreak: number
       lastChangedAt: Date | null
       lastCheckedAt: Date | null
     },
   ): Promise<SubscriberSourceDto> {
     const metrics = await this.vk.getGroupMetrics(source.pollInput)
     const newCount = metrics.subscriberCount
-    const oldCount = source.subscriberCount
     const now = new Date()
-    let sessionDelta = 0
-
-    if (oldCount === null) {
-      await this.prisma.subscriberSnapshot.create({
-        data: {
-          sourceId: source.id,
-          count: newCount,
-          delta: 0,
-          captureSource: SubscriberCaptureSource.SYNC,
-        },
-      })
-    } else if (newCount !== oldCount) {
-      sessionDelta = newCount - oldCount
-      await this.prisma.subscriberSnapshot.create({
-        data: {
-          sourceId: source.id,
-          count: newCount,
-          delta: sessionDelta,
-          captureSource: SubscriberCaptureSource.SYNC,
-        },
-      })
-    }
+    const { sessionDelta, countChanged, nextStreak } =
+      await this.recordAutomaticSync(source, newCount)
 
     const updated = await this.prisma.subscriberSource.update({
       where: { id: source.id },
       data: {
         subscriberCount: newCount,
+        unchangedSyncStreak: nextStreak,
         handle: metrics.handle ?? source.handle,
         title: metrics.title ?? source.title,
         lastCheckedAt: now,
-        ...(oldCount === null || newCount !== oldCount
+        ...(source.subscriberCount === null || countChanged
           ? { lastChangedAt: now }
           : {}),
       },
@@ -1184,7 +1315,7 @@ export class SubscribersService {
     sessionDelta: number,
   ): Promise<SubscriberSourceDto> {
     const lastChange = await this.prisma.subscriberSnapshot.findFirst({
-      where: { sourceId: source.id, delta: { not: 0 } },
+      where: { sourceId: source.id },
       orderBy: [{ capturedAt: 'desc' }, { id: 'desc' }],
     })
 
@@ -1222,12 +1353,71 @@ export class SubscribersService {
     }
   }
 
+  private async recordAutomaticSync(
+    source: {
+      id: string
+      subscriberCount: number | null
+      unchangedSyncStreak: number
+    },
+    newCount: number,
+  ): Promise<{
+    sessionDelta: number
+    countChanged: boolean
+    nextStreak: number
+  }> {
+    const oldCount = source.subscriberCount
+
+    if (oldCount === null) {
+      await this.prisma.subscriberSnapshot.create({
+        data: {
+          sourceId: source.id,
+          count: newCount,
+          delta: 0,
+          captureSource: SubscriberCaptureSource.SYNC,
+        },
+      })
+      return { sessionDelta: 0, countChanged: true, nextStreak: 0 }
+    }
+
+    if (newCount !== oldCount) {
+      const sessionDelta = newCount - oldCount
+      await this.prisma.subscriberSnapshot.create({
+        data: {
+          sourceId: source.id,
+          count: newCount,
+          delta: sessionDelta,
+          captureSource: SubscriberCaptureSource.SYNC,
+        },
+      })
+      return { sessionDelta, countChanged: true, nextStreak: 0 }
+    }
+
+    const nextStreak = source.unchangedSyncStreak + 1
+    if (nextStreak >= UNCHANGED_CHECKS_FOR_CHECKPOINT) {
+      await this.prisma.subscriberSnapshot.create({
+        data: {
+          sourceId: source.id,
+          count: newCount,
+          delta: 0,
+          captureSource: SubscriberCaptureSource.CHECK,
+        },
+      })
+      return { sessionDelta: 0, countChanged: false, nextStreak: 0 }
+    }
+
+    return { sessionDelta: 0, countChanged: false, nextStreak }
+  }
+
   private toSharedCaptureSource(
     source: SubscriberCaptureSource,
   ): SharedCaptureSource {
-    return source === SubscriberCaptureSource.MANUAL
-      ? SharedCaptureSource.MANUAL
-      : SharedCaptureSource.SYNC
+    if (source === SubscriberCaptureSource.MANUAL) {
+      return SharedCaptureSource.MANUAL
+    }
+    if (source === SubscriberCaptureSource.CHECK) {
+      return SharedCaptureSource.CHECK
+    }
+    return SharedCaptureSource.SYNC
   }
 
   private toSharedTrackingMode(

@@ -60,6 +60,13 @@ export const OAuthConnectionStatus = {
 export type OAuthConnectionStatus =
   (typeof OAuthConnectionStatus)[keyof typeof OAuthConnectionStatus]
 
+export const TelegramBotConnectionStatus = {
+  ACTIVE: 'ACTIVE',
+  INVALID: 'INVALID',
+} as const
+export type TelegramBotConnectionStatus =
+  (typeof TelegramBotConnectionStatus)[keyof typeof TelegramBotConnectionStatus]
+
 export interface Metrics {
   views: number
   likes: number
@@ -180,6 +187,30 @@ export interface OAuthConnectionDto {
   expiresAt: string | null
 }
 
+export interface TelegramBotConnectionDto {
+  id: string
+  botId: string
+  botUsername: string | null
+  status: TelegramBotConnectionStatus
+}
+
+export interface ConnectTelegramBotRequest {
+  token: string
+}
+
+export interface VerifyTelegramChannelRequest {
+  input: string
+}
+
+export interface VerifyTelegramChannelResult {
+  chatId: string
+  externalId: string
+  handle: string
+  title: string | null
+  profileUrl: string
+  subscriberCount: number
+}
+
 export interface UserDto {
   id: string
   email: string
@@ -297,6 +328,7 @@ export type SubscriberTrackingMode =
 
 export const SubscriberCaptureSource = {
   SYNC: 'SYNC',
+  CHECK: 'CHECK',
   MANUAL: 'MANUAL',
 } as const
 export type SubscriberCaptureSource =
@@ -364,7 +396,7 @@ export interface SubscriberSourceDto {
   lastCheckedAt: string | null
   /** Delta from the most recent sync (0 if count unchanged). */
   sessionDelta: number
-  /** Latest snapshot with a non-zero delta, for tooltip display. */
+  /** Latest snapshot (change or periodic check) for live delta and tooltip. */
   lastChange: SubscriberSnapshotDto | null
 }
 

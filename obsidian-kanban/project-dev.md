@@ -39,6 +39,17 @@ kanban-plugin: basic
 - [ ] Попап/экран подключения YouTube (`ConnectProviders`) — кнопка «Авторизоваться» (сейчас YouTube через API key + ссылку на канал)
 - [ ] После успешной авторизации Google: `invalidateTags` / refetch `getOAuthConnections`
 
+### Telegram — Bot API (см. `telegram-integration.md`)
+
+> **Решение:** только Bot API (токен бота + админ в канале). MTProto отложен — нет `api_id`/`api_hash`.
+
+- [x] Prisma: `TelegramBotConnection` (`botTokenEnc`, `botId`, `botUsername`, `status`)
+- [x] API: сохранение токена, `getMe`, верификация бота в канале (`getChatMember`)
+- [x] `SubscribersService`: Live-подписчики через `getChatMembersCount`
+- [x] `shared`: правило `bot_token` для `PROVIDER_SUBSCRIBER_AUTH[TELEGRAM]`
+- [x] UI: подключение бота + проверка канала в `AddSubscriberSourceDialog`
+- [ ] Публикации TG: парсер `t.me/channel/messageId`, метрики — **ручной режим** (до MTProto)
+
 ### Прочее
 
 - [ ] **Календарь** — drag-and-drop планирование, фильтры по площадкам, синхронизация с API

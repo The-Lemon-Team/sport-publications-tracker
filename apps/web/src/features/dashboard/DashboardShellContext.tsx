@@ -1,5 +1,5 @@
 import { createContext, useContext, type ReactNode } from 'react'
-import type { OAuthConnectionDto } from '@spt/shared'
+import type { OAuthConnectionDto, TelegramBotConnectionDto } from '@spt/shared'
 import type { LiveSubscriberSource } from '@/lib/provider-connections'
 import type { WeeklyPublicationInsight } from '@/features/dashboard/lib/sidebar-user-stats'
 
@@ -7,6 +7,8 @@ type DashboardShellContextValue = {
   subscriberSources: LiveSubscriberSource[]
   weeklyPublications: WeeklyPublicationInsight[]
   oauthConnections: OAuthConnectionDto[]
+  telegramBotConnection: TelegramBotConnectionDto | null
+  refetchTelegramBot: () => void
   connectingId: string | null
   oauthError: string | null
   onConnectOAuth: (id: string) => void

@@ -9,6 +9,7 @@ export type ProviderMetricAuthRequirement =
   | 'none'
   | 'oauth'
   | 'manual_only'
+  | 'bot_token'
 
 export interface ProviderMetricAuthRule {
   requirement: ProviderMetricAuthRequirement
@@ -28,6 +29,8 @@ export const PROVIDER_METRIC_AUTH: Partial<
     requirement: 'oauth',
     oauthProvider: OAuthProvider.VK,
   },
+  // Post metrics stay manual until MTProto (api_id/api_hash) is available.
+  // Channel subscribers use Bot API separately — see telegram-integration.md.
   [Provider.TELEGRAM]: { requirement: 'manual_only' },
   [Provider.CLUB_SOLO_AUDIO]: { requirement: 'manual_only' },
   [Provider.CLUB_SOLO_PLATFORM]: { requirement: 'manual_only' },

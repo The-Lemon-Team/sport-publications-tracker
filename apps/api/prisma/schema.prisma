@@ -61,6 +61,11 @@ enum OAuthConnectionStatus {
   REVOKED
 }
 
+enum TelegramBotConnectionStatus {
+  ACTIVE
+  INVALID
+}
+
 /** How subscriber counts are maintained for a tracked source */
 enum SubscriberTrackingMode {
   AUTOMATIC // polled from platform API
@@ -69,7 +74,8 @@ enum SubscriberTrackingMode {
 
 /** Origin of a subscriber snapshot row */
 enum SubscriberCaptureSource {
-  SYNC   // automatic fetch (API poll)
+  SYNC   // automatic fetch detected a count change
+  CHECK  // automatic fetch: count unchanged after N consecutive polls
   MANUAL // user-entered value
 }
 
@@ -87,6 +93,7 @@ model User {
   oauthConnections  OAuthConnection[]
   refreshTokens     RefreshToken[]
   subscriberSources SubscriberSource[]
+  telegramBotConnection TelegramBotConnection?
 
   @@map("users")
 }
@@ -126,6 +133,22 @@ model OAuthConnection {
   @@unique([userId, provider, externalAccountId])
   @@index([userId, provider])
   @@map("oauth_connections")
+}
+
+model TelegramBotConnection {
+  id          String                      @id @default(cuid())
+  userId      String                      @unique
+  botTokenEnc String
+  botId       String
+  botUsername String?
+  status      TelegramBotConnectionStatus @default(ACTIVE)
+  createdAt   DateTime                    @default(now())
+  updatedAt   DateTime                    @updatedAt
+
+  user              User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  subscriberSources SubscriberSource[]
+
+  @@map("telegram_bot_connections")
 }
 
 // ─── Content hierarchy ───────────────────────────────────────────────────────
@@ -225,8 +248,8 @@ model MetricHistoryEntry {
 }
 
 // ─── Live subscriber tracking ────────────────────────────────────────────────
-// Sources are polled when the user opens the dashboard (not via cron).
-// SubscriberSnapshot rows are written only when the count changes.
+// Sources are polled while the dashboard is open (not via cron).
+// Snapshots: on count change (SYNC), periodic unchanged checkpoint (CHECK), or manual edit.
 
 model SubscriberSource {
   id                String                 @id @default(cuid())
@@ -238,15 +261,18 @@ model SubscriberSource {
   pollInput         String
   profileUrl        String?
   trackingMode      SubscriberTrackingMode @default(AUTOMATIC)
-  subscriberCount   Int?
-  lastChangedAt     DateTime?
-  lastCheckedAt     DateTime?
+  subscriberCount      Int?
+  unchangedSyncStreak  Int                    @default(0)
+  lastChangedAt        DateTime?
+  lastCheckedAt        DateTime?
   oauthConnectionId String?                @unique
+  telegramBotConnectionId String?
   createdAt         DateTime               @default(now())
   updatedAt         DateTime               @updatedAt
 
   user            User                           @relation(fields: [userId], references: [id], onDelete: Cascade)
   oauthConnection OAuthConnection?               @relation(fields: [oauthConnectionId], references: [id], onDelete: SetNull)
+  telegramBotConnection TelegramBotConnection?   @relation(fields: [telegramBotConnectionId], references: [id], onDelete: SetNull)
   snapshots       SubscriberSnapshot[]
   publications    Publication[]
   channelAttachments PublicationChannelAttachment[]

@@ -9,6 +9,7 @@ import { OAuthModule } from './oauth/oauth.module'
 import { TopicsModule } from './topics/topics.module'
 import { YouTubeModule } from './youtube/youtube.module'
 import { InstagramModule } from './instagram/instagram.module'
+import { TelegramModule } from './telegram/telegram.module'
 import { SubscribersModule } from './subscribers/subscribers.module'
 import { PublicationsModule } from './publications/publications.module'
 import { HealthController } from './health/health.controller'
@@ -24,6 +25,7 @@ import { HealthController } from './health/health.controller'
     TopicsModule,
     YouTubeModule,
     InstagramModule,
+    TelegramModule,
     SubscribersModule,
     PublicationsModule,
   ],

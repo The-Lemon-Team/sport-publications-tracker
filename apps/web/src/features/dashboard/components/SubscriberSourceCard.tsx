@@ -28,10 +28,9 @@ export function SubscriberSourceCard({
   onOpenHistory?: () => void
 }) {
   const provider = providerOf(source.providerId)
-  const isManual =
-    source.trackingMode === SubscriberTrackingMode.MANUAL || source.linkOnly
+  const isManual = source.trackingMode === SubscriberTrackingMode.MANUAL
   const isTracked = Boolean(source.sourceId)
-  const showLiveBadge = isTracked && !isManual && !source.linkOnly
+  const showLiveBadge = isTracked && !isManual
   const [updateCount, { isLoading: isSaving }] =
     useUpdateManualSubscriberCountMutation()
 

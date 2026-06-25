@@ -44,16 +44,16 @@ export const SUBSCRIBABLE_SOURCE_TYPES: SubscribableSourceType[] = [
   },
   {
     id: 'tg',
-    kind: 'link-only',
+    kind: 'channel-url',
     baseSubscribers: 0,
     drift: [0, 0],
     defaultHandle: '@channel',
-    addLabel: 'Группа Telegram',
-    addDescription: 'Ссылка t.me/… — без live-счётчика',
+    addLabel: 'Канал Telegram',
+    addDescription: 'Live через бота — подключите токен и проверьте канал',
   },
   {
     id: 'instagram',
-    kind: 'link-only',
+    kind: 'channel-url',
     baseSubscribers: 0,
     drift: [0, 0],
     defaultHandle: '@studio.s10',
@@ -90,10 +90,22 @@ export interface LiveSubscriberSource {
   channelId?: string
   profileUrl?: string | null
   trackingMode?: 'AUTOMATIC' | 'MANUAL'
-  linkOnly?: boolean
   sessionDelta?: number
   lastChangedAt?: string | null
   lastChange?: SubscriberSnapshotDto | null
+}
+
+/** Delta for live cards: latest sync change, or last snapshot if unchanged this poll. */
+export function getLiveSubscriberDisplayDelta(
+  source: Pick<LiveSubscriberSource, 'sessionDelta' | 'lastChange'>,
+): number {
+  if (source.sessionDelta != null && source.sessionDelta !== 0) {
+    return source.sessionDelta
+  }
+  if (source.lastChange != null) {
+    return source.lastChange.delta
+  }
+  return 0
 }
 
 export interface StoredYouTubeChannel {

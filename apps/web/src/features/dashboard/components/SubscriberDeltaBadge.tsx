@@ -32,7 +32,7 @@ export function SubscriberDeltaBadge({
     return () => document.removeEventListener('mousedown', handlePointerDown)
   }, [hovered])
 
-  const displayDate = lastChangedAt ?? lastChange?.capturedAt ?? null
+  const displayDate = lastChange?.capturedAt ?? lastChangedAt ?? null
 
   return (
     <div ref={ref} className="relative flex flex-col items-end gap-0.5">
